@@ -12,7 +12,7 @@ A local Home Assistant integration for the [Lovesac StealthTech Sound + Charge](
 - Diagnostics: firmware versions (MCU, DSP, EQ), audio capability, connection health, last contact, and raw layout, covering and arm type values
 - A sync button that refreshes state from the hub on demand
 
-## Audio capability, stated plainly
+## StealthTech Audio capability
 
 The hub is HDMI ARC only and decodes Dolby Digital 5.1, with Pro Logic II upmixing. There is no Atmos and no DTS support in the hardware as shipped, per the [libstealthtech hardware teardown](https://github.com/jackspirou/libstealthtech). The integration surfaces this as a diagnostic sensor so the answer lives on the device page instead of in a forum thread.
 
