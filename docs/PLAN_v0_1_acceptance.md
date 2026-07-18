@@ -19,11 +19,11 @@ table below is filled from real hardware).
 |---|---|---|---|
 | 1 | PlayerControl values (play/pause toggle=1?, skip 0=next/1=prev?) — guessed, neither source documents them | BT source, press play/pause/skip from HA, observe sofa + notification echoes | pending |
 | 2 | Inter-write gap (100 ms assumed) | Rapid EQ slider drags; try 0 ms, watch for dropped frames | pending |
-| 3 | Auto-discovery: hub advertises service UUID while unconnected | Fresh HA discovery card appears without manual address | pending |
-| 4 | Post-write notification echo (drain-after-command assumes yes) | Volume change from HA reflects in HA state within one cycle without waiting for next poll | pending |
-| 5 | Pairing/bonding requirement (assumed none) | First connect from a never-bonded adapter succeeds | pending |
+| 3 | Auto-discovery: hub advertises service UUID while unconnected | Fresh HA discovery card appears without manual address | **CLOSED 2026-07-18: discovered via ESPHome proxy (Ziri room ESP32), no manual address** |
+| 4 | Post-write notification echo (drain-after-command assumes yes) | Volume change from HA reflects in HA state within one cycle without waiting for next poll | **UNDER TEST 2026-07-18: sliders snap back (numbers are non-optimistic by design — they show coordinator state). Discriminator: does value settle within ~2 min / with media_player ON? Debug logging enabled live. Candidate v0.2 fix: optimistic set + same-connection post-write state dump.** |
+| 5 | Pairing/bonding requirement (assumed none) | First connect from a never-bonded adapter succeeds | **CLOSED 2026-07-18: GATT connect THROUGH the proxy succeeded; state dump returned real values (bass 14, treble 10, center 20, rear 22, balance 50, sub connected); no bonding** |
 | 6 | Layout/Covering/ArmType raw bytes | Log values; recline/re-arrange sactional, diff | pending |
-| 7 | State-dump version frames (MCU/DSP/EQ) parse without polluting status | Check logs for mimic misparses (CC 06 guard) | pending |
+| 7 | State-dump version frames (MCU/DSP/EQ) parse without polluting status | Check logs for mimic misparses (CC 06 guard) | **CLOSED 2026-07-18: entity values sane post-dump (no 71-volume mimic artifacts); device info shows Harman Kardon strings** |
 
 ## Acceptance criteria (fill from hardware, README-write-back style)
 - **Verify:** config flow discovers or accepts manual address; entry loads; entities appear.
