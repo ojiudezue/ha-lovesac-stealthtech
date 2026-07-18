@@ -83,26 +83,43 @@ class StealthTechMediaPlayer(StealthTechEntity, MediaPlayerEntity):
         return None if preset is None else protocol.PRESET_NAMES[preset]
 
     async def async_turn_on(self) -> None:
-        await self.coordinator.async_send_frames(protocol.encode_power(True))
+        await self.coordinator.async_send_frames(
+            protocol.encode_power(True),
+            optimistic=lambda state: setattr(state, "power", True),
+        )
 
     async def async_turn_off(self) -> None:
-        await self.coordinator.async_send_frames(protocol.encode_power(False))
+        await self.coordinator.async_send_frames(
+            protocol.encode_power(False),
+            optimistic=lambda state: setattr(state, "power", False),
+        )
 
     async def async_set_volume_level(self, volume: float) -> None:
         level = round(volume * protocol.VOLUME_MAX)
-        await self.coordinator.async_send_frames(protocol.encode_volume(level))
+        await self.coordinator.async_send_frames(
+            protocol.encode_volume(level),
+            optimistic=lambda state: setattr(state, "volume", level),
+        )
 
     async def async_mute_volume(self, mute: bool) -> None:
-        await self.coordinator.async_send_frames(protocol.encode_mute(mute))
+        await self.coordinator.async_send_frames(
+            protocol.encode_mute(mute),
+            optimistic=lambda state: setattr(state, "mute", mute),
+        )
 
     async def async_select_source(self, source: str) -> None:
+        value = protocol.SOURCE_NAME_TO_VALUE[source]
         await self.coordinator.async_send_frames(
-            protocol.encode_source(protocol.SOURCE_NAME_TO_VALUE[source])
+            protocol.encode_source(value),
+            optimistic=lambda state: setattr(state, "source", value),
         )
 
     async def async_select_sound_mode(self, sound_mode: str) -> None:
+        write = protocol.PRESET_NAME_TO_WRITE[sound_mode]
+        read = protocol.PRESET_WRITE_TO_READ[write]
         await self.coordinator.async_send_frames(
-            protocol.encode_preset(protocol.PRESET_NAME_TO_WRITE[sound_mode])
+            protocol.encode_preset(write),
+            optimistic=lambda state: setattr(state, "preset", read),
         )
 
     # PROTOCOL-UNCERTAIN: play/pause/skip values are guesses (see protocol.py).

@@ -24,38 +24,48 @@ from .protocol import Frame, StealthTechState
 @dataclass(frozen=True, kw_only=True)
 class StealthTechNumberDescription(NumberEntityDescription):
     get_value: Callable[[StealthTechState], int | None]
+    set_value: Callable[[StealthTechState, int], None]
     encode: Callable[[int], Frame]
+
+
+def _setter(attr: str) -> Callable[[StealthTechState, int], None]:
+    return lambda state, value: setattr(state, attr, value)
 
 
 DESCRIPTIONS: tuple[StealthTechNumberDescription, ...] = (
     StealthTechNumberDescription(
         key="bass", translation_key="bass",
         native_min_value=0, native_max_value=protocol.BASS_MAX, native_step=1,
-        get_value=lambda s: s.bass, encode=protocol.encode_bass,
+        get_value=lambda s: s.bass, set_value=_setter("bass"),
+        encode=protocol.encode_bass,
         entity_category=EntityCategory.CONFIG,
     ),
     StealthTechNumberDescription(
         key="treble", translation_key="treble",
         native_min_value=0, native_max_value=protocol.TREBLE_MAX, native_step=1,
-        get_value=lambda s: s.treble, encode=protocol.encode_treble,
+        get_value=lambda s: s.treble, set_value=_setter("treble"),
+        encode=protocol.encode_treble,
         entity_category=EntityCategory.CONFIG,
     ),
     StealthTechNumberDescription(
         key="center_volume", translation_key="center_volume",
         native_min_value=0, native_max_value=protocol.CENTER_VOLUME_MAX, native_step=1,
-        get_value=lambda s: s.center_volume, encode=protocol.encode_center_volume,
+        get_value=lambda s: s.center_volume, set_value=_setter("center_volume"),
+        encode=protocol.encode_center_volume,
         entity_category=EntityCategory.CONFIG,
     ),
     StealthTechNumberDescription(
         key="rear_volume", translation_key="rear_volume",
         native_min_value=0, native_max_value=protocol.REAR_VOLUME_MAX, native_step=1,
-        get_value=lambda s: s.rear_volume, encode=protocol.encode_rear_volume,
+        get_value=lambda s: s.rear_volume, set_value=_setter("rear_volume"),
+        encode=protocol.encode_rear_volume,
         entity_category=EntityCategory.CONFIG,
     ),
     StealthTechNumberDescription(
         key="balance", translation_key="balance",
         native_min_value=0, native_max_value=protocol.BALANCE_MAX, native_step=1,
-        get_value=lambda s: s.balance, encode=protocol.encode_balance,
+        get_value=lambda s: s.balance, set_value=_setter("balance"),
+        encode=protocol.encode_balance,
         entity_category=EntityCategory.CONFIG,
     ),
 )
@@ -87,6 +97,9 @@ class StealthTechNumber(StealthTechEntity, NumberEntity):
         return self.entity_description.get_value(self.state_obj)
 
     async def async_set_native_value(self, value: float) -> None:
+        desc = self.entity_description
+        level = int(value)
         await self.coordinator.async_send_frames(
-            self.entity_description.encode(int(value))
+            desc.encode(level),
+            optimistic=lambda state: desc.set_value(state, level),
         )
