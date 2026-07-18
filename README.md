@@ -2,6 +2,14 @@
 
 A local Home Assistant integration for the [Lovesac StealthTech Sound + Charge](https://www.lovesac.com/learn-about-sactionals-stealthtech-sound-charge) system, the Harman Kardon audio package built into Sactionals. It talks to the hub directly over Bluetooth Low Energy. No cloud, no account, no Lovesac app required once set up.
 
+## What it looks like
+
+<p align="center">
+  <img src="docs/images/device_controls.png" width="32%" alt="Device page with media controls, input dropdown, Quiet Couch Mode and sync button" />
+  <img src="docs/images/sensors_config.png" width="32%" alt="Input sensor and the five equalizer sliders" />
+  <img src="docs/images/diagnostics.png" width="32%" alt="Diagnostics: audio capability, control link, firmware versions, raw couch configuration values" />
+</p>
+
 ## What you get
 
 - Media player: power, volume, mute, input selection (HDMI ARC, Bluetooth, AUX, Optical), sound modes (Movies, Music, TV, News), and play, pause and skip when the source is Bluetooth
