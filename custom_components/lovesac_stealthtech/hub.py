@@ -6,6 +6,7 @@ adds HA plumbing (device resolution, DataUpdateCoordinator listeners).
 """
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
 
@@ -15,6 +16,13 @@ from .protocol import Frame, StealthTechState
 # Type of an optimistic state mutation applied at queue time; the state dump
 # run on the same connection right after the write flush corrects it.
 OptimisticUpdate = Callable[[StealthTechState], None]
+
+# Human-readable causes surfaced on the control-link binary sensor.
+LINK_REASON_CONNECT_FAILED = (
+    "connection failed — the Lovesac app may be holding the hub's single "
+    "Bluetooth slot"
+)
+LINK_REASON_NO_DATA = "connected but no data received"
 
 
 def _utcnow() -> datetime:
@@ -31,7 +39,13 @@ def quiet_mode_writable(state: StealthTechState) -> bool:
 
 
 class StealthTechHub:
-    """Owns state, the pending-write queue, and last-session health."""
+    """Owns state, the pending-write queue, and last-session health.
+
+    Single-session invariant: the device accepts only ONE BLE connection, so
+    `poll()` serializes end-to-end (connect through disconnect) behind an
+    asyncio.Lock. A second caller waits for the first session to fully tear
+    down before its own connect is attempted.
+    """
 
     def __init__(
         self,
@@ -45,7 +59,9 @@ class StealthTechHub:
         self.state = StealthTechState()
         self.pending: list[Frame] = []
         self.link_ok: bool | None = None  # None = never attempted
+        self.link_reason: str | None = None  # set whenever link_ok is False
         self.last_contact: datetime | None = None
+        self._session_lock = asyncio.Lock()
 
     def queue(
         self, *frames: Frame, optimistic: OptimisticUpdate | None = None
@@ -56,14 +72,28 @@ class StealthTechHub:
             optimistic(self.state)
 
     async def poll(self) -> StealthTechState:
-        """Run one session: flush queued writes, then dump for correction."""
-        try:
-            await run_session(
-                self._connect, self.state, self.pending, self.idle_timeout
-            )
-        except Exception:
-            self.link_ok = False
-            raise
-        self.link_ok = True
-        self.last_contact = self._clock()
-        return self.state
+        """Run one session: flush queued writes, then dump for correction.
+
+        `last_contact` only advances (and `link_ok` only goes True) when the
+        session actually delivered data — at least one StatusNotification
+        applied. A session that connects but stays silent is NOT a successful
+        contact: `link_ok` goes False with a distinct reason and the previous
+        `last_contact` timestamp is preserved as the honest staleness marker.
+        """
+        async with self._session_lock:
+            try:
+                applied = await run_session(
+                    self._connect, self.state, self.pending, self.idle_timeout
+                )
+            except Exception:
+                self.link_ok = False
+                self.link_reason = LINK_REASON_CONNECT_FAILED
+                raise
+            if applied >= 1:
+                self.link_ok = True
+                self.link_reason = None
+                self.last_contact = self._clock()
+            else:
+                self.link_ok = False
+                self.link_reason = LINK_REASON_NO_DATA
+            return self.state

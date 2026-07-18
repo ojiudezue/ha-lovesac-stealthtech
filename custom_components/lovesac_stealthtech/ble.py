@@ -71,23 +71,29 @@ async def run_session(
     idle_timeout: float,
     request_dump: bool = True,
     request_versions: bool = True,
-) -> StealthTechState:
+) -> int:
     """Run one full connect->write->dump->drain->disconnect session.
 
     `pending_frames` is consumed (cleared) as frames are written.
     Raises whatever `connect` raises on connection failure.
+
+    Returns the number of StatusNotifications applied to `state` during the
+    session. A session that connects but applies zero status frames delivered
+    no data — the hub layer treats it as a failed contact, not a success.
     """
     client = await connect()
     quiet = asyncio.Event()
     loop = asyncio.get_running_loop()
     last_rx = loop.time()
+    applied = 0
 
     def _on_notify(_char: object, data: bytearray) -> None:
-        nonlocal last_rx
+        nonlocal last_rx, applied
         last_rx = loop.time()
         parsed = parse_notification(bytes(data))
         if isinstance(parsed, StatusNotification):
             apply_status(state, parsed)
+            applied += 1
         elif isinstance(parsed, VersionNotification):
             state.versions[parsed.component] = parsed.version
         quiet.set()  # wake the drain loop to re-check idle window
@@ -115,6 +121,10 @@ async def run_session(
 
         # Drain notifications (command echoes, version frames, the dump)
         # until idle_timeout of silence.
+        # ACCEPTED (review B5): a dump frame arriving AFTER idle_timeout of
+        # silence is dropped with the connection. The 5 s default window is
+        # ~50x the observed inter-frame gap on hardware; a later frame implies
+        # a link so degraded the next session's full dump is the better fix.
         while True:
             quiet.clear()
             remaining = idle_timeout - (loop.time() - last_rx)
@@ -134,4 +144,4 @@ async def run_session(
         except Exception:  # noqa: BLE001
             _LOGGER.debug("Disconnect failed (already dropped?)", exc_info=True)
 
-    return state
+    return applied

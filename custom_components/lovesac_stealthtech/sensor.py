@@ -45,6 +45,9 @@ def _source_name(coordinator: StealthTechCoordinator) -> str | None:
 class StealthTechSensorDescription(SensorEntityDescription):
     get_value: Callable[[StealthTechCoordinator], str | int | datetime | None]
     attributes: Callable[[StealthTechCoordinator], dict[str, object]] | None = None
+    # Stays available through sustained connection failures (outage-reporting
+    # entities must not go unavailable with everything else).
+    always_available: bool = False
 
 
 DESCRIPTIONS: tuple[StealthTechSensorDescription, ...] = (
@@ -102,6 +105,8 @@ DESCRIPTIONS: tuple[StealthTechSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         device_class=SensorDeviceClass.TIMESTAMP,
         get_value=lambda c: c.last_contact,
+        # "How stale is everything" must survive the outage it measures.
+        always_available=True,
     ),
 )
 
@@ -126,6 +131,12 @@ class StealthTechSensor(StealthTechEntity, SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{coordinator.address}_{description.key}"
+
+    @property
+    def available(self) -> bool:
+        if self.entity_description.always_available:
+            return True
+        return super().available
 
     @property
     def native_value(self) -> str | int | datetime | None:

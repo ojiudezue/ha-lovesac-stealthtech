@@ -64,14 +64,15 @@ async def run(fake, pending=None, idle=0.05):
         connects.append(1)
         return fake
 
-    result = await ble.run_session(connect, state, pending if pending is not None else [], idle)
-    return result, connects
+    applied = await ble.run_session(connect, state, pending if pending is not None else [], idle)
+    return applied, state, connects
 
 
 @pytest.mark.asyncio
 async def test_connect_dump_drain_disconnect_cycle(fake):
-    state, connects = await run(fake)
+    applied, state, connects = await run(fake)
     assert connects == [1]  # exactly one connection per session
+    assert applied == 3  # count of StatusNotifications applied (B4)
     # Ordering: notify subscription, version request, dump request, teardown.
     assert fake.calls[0] == ("start_notify", p.CHAR_UPSTREAM)
     assert fake.calls[1] == ("write", p.CHAR_DEVICE_INFO, p.encode_version_request().data)
@@ -86,11 +87,20 @@ async def test_connect_dump_drain_disconnect_cycle(fake):
 
 @pytest.mark.asyncio
 async def test_version_request_sent_once_per_session(fake):
-    state, _ = await run(fake)
+    _, state, _ = await run(fake)
     version_writes = [
         c for c in fake.writes() if c[2] == p.encode_version_request().data
     ]
     assert len(version_writes) == 1
+    assert state.versions == {"mcu": "1.71"}
+
+
+@pytest.mark.asyncio
+async def test_silent_session_returns_zero_applied():
+    """B4: version frames alone are not status data — applied count is 0."""
+    fake = FakeClient([], versions=[version_notif(0x01, 1, 71)])
+    applied, state, _ = await run(fake)
+    assert applied == 0
     assert state.versions == {"mcu": "1.71"}
 
 

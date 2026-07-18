@@ -14,11 +14,6 @@ from .const import DOMAIN
 from .coordinator import StealthTechCoordinator
 from .entity import StealthTechEntity
 
-CONTROL_LINK_DOWN_REASON = (
-    "connection failed — the Lovesac app may be holding the hub's single "
-    "Bluetooth slot"
-)
-
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -63,11 +58,19 @@ class StealthTechControlLinkSensor(StealthTechEntity, BinarySensorEntity):
         self._attr_unique_id = f"{coordinator.address}_control_link"
 
     @property
+    def available(self) -> bool:
+        # This sensor reports on the outage — it must never join it. After
+        # MAX_CONSECUTIVE_FAILURES the coordinator marks entities unavailable;
+        # control_link stays up to show OFF + the reason instead.
+        return True
+
+    @property
     def is_on(self) -> bool | None:
         return self.coordinator.link_ok
 
     @property
     def extra_state_attributes(self) -> dict[str, str] | None:
-        if self.coordinator.link_ok is False:
-            return {"reason": CONTROL_LINK_DOWN_REASON}
+        reason = self.coordinator.link_reason
+        if self.coordinator.link_ok is False and reason is not None:
+            return {"reason": reason}
         return None

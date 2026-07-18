@@ -34,5 +34,12 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        coordinator: StealthTechCoordinator = hass.data[DOMAIN][entry.entry_id]
+        # Stop the poll timer BEFORE dropping the reference. Without this a
+        # reload orphans the old coordinator's timer and two pollers then
+        # fight over the hub's single BLE slot. Belt-and-braces with the
+        # config_entry= binding in the coordinator (which lets the base class
+        # register its own shutdown on unload); async_shutdown is idempotent.
+        await coordinator.async_shutdown()
         hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok

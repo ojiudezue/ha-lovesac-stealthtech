@@ -45,6 +45,12 @@ class StealthTechCoordinator(DataUpdateCoordinator[StealthTechState]):
             hass,
             _LOGGER,
             name=f"{DOMAIN}_{self.address}",
+            # Explicit config_entry so the base class binds this coordinator
+            # (and its poll timer) to the entry lifecycle. The kwarg exists
+            # since HA 2024.11.0 (core update_coordinator.py, verified against
+            # the 2024.11.0 tag) and omitting it stops working in 2025.11
+            # (core issue #128077); hacs.json minimum bumped to match.
+            config_entry=entry,
             update_interval=timedelta(seconds=poll),
         )
         self.hub = StealthTechHub(self._connect, idle_timeout)
@@ -57,6 +63,10 @@ class StealthTechCoordinator(DataUpdateCoordinator[StealthTechState]):
     @property
     def link_ok(self) -> bool | None:
         return self.hub.link_ok
+
+    @property
+    def link_reason(self) -> str | None:
+        return self.hub.link_reason
 
     @property
     def last_contact(self) -> datetime | None:
@@ -98,7 +108,15 @@ class StealthTechCoordinator(DataUpdateCoordinator[StealthTechState]):
     async def async_send_frames(
         self, *frames: Frame, optimistic: OptimisticUpdate | None = None
     ) -> None:
-        """Queue frames (updating state optimistically) and flush them now."""
+        """Queue frames (updating state optimistically) and flush them now.
+
+        ACCEPTED (review B3): if a periodic poll session is mid-dump when a
+        write is queued, the dump's frames can briefly revert the optimistic
+        value until the flush session (requested below) re-writes and
+        re-dumps. Benign and bounded — the UI blips for at most one session
+        and self-corrects on the very next dump; not worth cross-session
+        sequencing machinery.
+        """
         self.hub.queue(*frames, optimistic=optimistic)
         if optimistic is not None:
             self.async_update_listeners()
