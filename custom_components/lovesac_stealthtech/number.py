@@ -2,6 +2,13 @@
 
 Ranges are documented in libstealthtech docs/protocol-mapping.md (Command
 Encoding Table) and match the clamps in homebridge commands.ts - none guessed.
+
+DELIBERATE standby asymmetry (review A-LOW-1): quiet mode carries an explicit
+power guard (the switch refuses when the hub is in standby), but these sliders
+stay optimistic-with-self-correct — a standby-ignored write snaps back to
+truth on the same-connection dump. Refusing a slider mid-drag is worse UX
+than a brief snap-back; a hard-refusal guard here would fight the drag
+gesture. Documented in docs/PLAN_v0_2.md.
 """
 from __future__ import annotations
 

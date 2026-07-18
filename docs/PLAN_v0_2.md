@@ -43,7 +43,9 @@ changes the answer is at least visible. Static by design — it exists so the
 answer to "why doesn't Atmos show up" lives on the device page.
 
 ## D5 — Firmware version sensors
-Send `encode_version_request()` once per poll session (frame exists, unused);
+Send `encode_version_request()` once per session — every session, poll and
+write-flush alike (a harmless idempotent read; wording reconciled to the
+code, review B6);
 expose `sensor.…_mcu_firmware`, `…_dsp_firmware`, `…_eq_firmware`
 (DIAGNOSTIC). Zero risk; also anchors D4's attrs.
 
@@ -74,6 +76,17 @@ Rename to Lovesac's product term "Quiet Couch Mode"; add the
 Homebridge-style power-off guard (refuse + log when hub is off); attribute
 documenting what it does (couch/sub attenuation + peak limiting, center
 carries).
+
+## Review-ratified behaviors (v0.2 fix-up)
+- **Standby asymmetry is deliberate (A-LOW-1):** quiet mode gets a hard
+  power-off guard; EQ sliders stay optimistic-with-self-correct (refusing a
+  slider mid-drag is worse UX than a brief snap-back). Comment lives at the
+  number platform docstring.
+- **A connected-but-silent session is NOT a contact (B4):** `link_ok` /
+  `last_contact` only advance when ≥1 status frame was applied; a silent
+  session reports `reason: "connected but no data received"`.
+- **Control-link + last-contact entities never go unavailable (A-MED-1):**
+  they must keep reporting through the outage they exist to explain.
 
 ## Considered, deliberately NOT in v0.2
 - Power switch outside media_player (the media_player toggle is one tap;
