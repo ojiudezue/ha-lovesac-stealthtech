@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 import types
+from enum import IntFlag
 from dataclasses import dataclass
 
 
@@ -175,6 +176,11 @@ class SelectEntity:
 # --- homeassistant.components.update ----------------------------------------
 class UpdateDeviceClass:
     FIRMWARE = "firmware"
+
+
+class UpdateEntityFeature(IntFlag):
+    INSTALL = 1
+    PROGRESS = 2
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -356,6 +362,7 @@ def install() -> None:
     update.UpdateDeviceClass = UpdateDeviceClass
     update.UpdateEntity = UpdateEntity
     update.UpdateEntityDescription = UpdateEntityDescription
+    update.UpdateEntityFeature = UpdateEntityFeature
     ir = _module("homeassistant.helpers.issue_registry")
     ir.IssueSeverity = IssueSeverity
     ir.async_create_issue = async_create_issue

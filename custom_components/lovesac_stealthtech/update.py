@@ -15,6 +15,7 @@ from homeassistant.components.update import (
     UpdateDeviceClass,
     UpdateEntity,
     UpdateEntityDescription,
+    UpdateEntityFeature,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -74,7 +75,11 @@ class StealthTechUpdate(StealthTechEntity, UpdateEntity):
     components/update/__init__.py: async_install raises without INSTALL).
     """
 
-    _attr_supported_features = 0  # deliberately no INSTALL
+    # UpdateEntityFeature(0): HA's state_attributes does membership tests
+    # ("PROGRESS in supported_features") which require the IntFlag type —
+    # a bare int raises TypeError at entity-add on HA 2025+ (seen live
+    # 2026-07-18 on 2026.7). Empty flag = no install support, as intended.
+    _attr_supported_features = UpdateEntityFeature(0)  # deliberately no INSTALL
     _attr_release_url = RELEASE_URL
 
     def __init__(

@@ -467,3 +467,18 @@ def test_every_ble_write_uses_write_without_response():
     assert len(calls) >= 3  # flush, version request, dump request
     for args in calls:
         assert "response=False" in args
+
+def test_update_supported_features_is_intflag_not_bare_int():
+    """Live incident 2026-07-18: HA's update.state_attributes does
+    'PROGRESS in supported_features', which raises TypeError on a bare
+    int. supported_features must be an IntFlag instance (empty flag)."""
+    import enum
+    from custom_components.lovesac_stealthtech import update as update_mod
+    feats = update_mod.StealthTechUpdate._attr_supported_features
+    assert isinstance(feats, enum.IntFlag)
+    # HA-style membership test must not raise. Import the SAME class the
+    # production module resolved via sys.modules (a direct tests.ha_stub
+    # import can be a second module instance whose enum members fail
+    # cross-class containment).
+    from homeassistant.components.update import UpdateEntityFeature
+    assert (UpdateEntityFeature.PROGRESS in feats) is False
