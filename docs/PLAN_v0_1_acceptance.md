@@ -28,6 +28,7 @@ table below is filled from real hardware).
 ## Acceptance criteria (fill from hardware, README-write-back style)
 - **Verify:** config flow discovers or accepts manual address; entry loads; entities appear.
 - **media_player:** power ON **PASS 2026-07-18** / off, volume slider renders **PASS**; sources ×4, sound modes ×4 (asymmetric enum), play/pause on BT — pending.
+- **BLE-control × BT-audio coexistence (operator priority):** with HA holding the GATT control slot, select source=BT from HA, stream audio from a phone via classic A2DP, and confirm (a) audio plays, (b) HA source/volume commands still land, (c) play/pause/skip from HA affect the stream (this simultaneously closes ledger item 1). Hypothesis: control (BLE GATT) and audio (A2DP) are separate planes and never contend — neither reference doc states it explicitly, so this is the proof.
 - **number ×5:** balance + treble round-trip **PASS 2026-07-18** (50→59, 10→16 persisted); bass/center/rear presumed same path — spot-check pending.
 - **switch:** quiet mode toggles and reads back **PASS 2026-07-18**.
 - **binary_sensor:** subwoofer connected matches reality.
