@@ -1,0 +1,52 @@
+name: Enum value report (layout / arm type / covering)
+description: >-
+  Report the pairing between a raw value shown by a "(raw)" sensor and what
+  the Lovesac app (or your eyes) say your couch actually is. Each report
+  decodes one row of the shared enum tables.
+title: "Enum report: "
+labels: ["enum-report"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        The hub reports layout / arm type / covering as raw bytes with no
+        public decoding. Paste the raw values from the diagnostic sensors and
+        what your couch actually is — the mapping ships to everyone in the
+        next release.
+  - type: input
+    id: raw_layout
+    attributes:
+      label: Couch Layout (raw) sensor value
+      description: The raw_value attribute of the "Couch Layout (raw)" sensor.
+    validations:
+      required: false
+  - type: input
+    id: raw_arm_type
+    attributes:
+      label: Couch Arm Type (raw) sensor value
+      description: The raw_value attribute of the "Couch Arm Type (raw)" sensor.
+    validations:
+      required: false
+  - type: input
+    id: raw_covering
+    attributes:
+      label: Couch Cover (raw) sensor value
+      description: The raw_value attribute of the "Couch Cover (raw)" sensor.
+    validations:
+      required: false
+  - type: textarea
+    id: app_says
+    attributes:
+      label: What the Lovesac app / your eyes say
+      description: >-
+        The shape, arm style, and fabric as configured in the Lovesac app or
+        as physically true (e.g. "L-Shape, standard arms, Padded Velvet").
+    validations:
+      required: true
+  - type: input
+    id: firmware_versions
+    attributes:
+      label: Firmware versions
+      description: MCU / DSP / EQ firmware sensor values (e.g. 1.71 / 1.68 / 1.23).
+    validations:
+      required: false

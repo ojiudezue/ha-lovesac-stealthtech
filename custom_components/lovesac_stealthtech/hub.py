@@ -7,11 +7,19 @@ adds HA plumbing (device resolution, DataUpdateCoordinator listeners).
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
 
 from .ble import ConnectCallable, run_session
 from .protocol import Frame, StealthTechState
+
+_LOGGER = logging.getLogger(__name__)
+
+# How many sessions a pending shape write stays eligible for read-scale
+# pairing. The Layout status normally arrives in the same session's dump
+# ("same or next session" per the v0.3 D3 spec).
+_SHAPE_PAIRING_SESSION_LIMIT = 2
 
 # Type of an optimistic state mutation applied at queue time; the state dump
 # run on the same connection right after the write flush corrects it.
@@ -62,6 +70,40 @@ class StealthTechHub:
         self.link_reason: str | None = None  # set whenever link_ok is False
         self.last_contact: datetime | None = None
         self._session_lock = asyncio.Lock()
+        # Pending couch-shape write awaiting a Layout read for read-scale
+        # decoding: (option label, write enum value, sessions remaining).
+        self._pending_shape: tuple[str, int, int] | None = None
+
+    def note_shape_write(self, label: str, write_value: int) -> None:
+        """Arm the read-scale pairing instrumentation for a shape write.
+
+        The Layout status code reports values on a DIFFERENT scale than the
+        write enum (known fixed point: physical L-Shape reads raw 5). Each
+        write→read pairing observed in the wild decodes one row of the read
+        table, so it is logged at INFO.
+        """
+        self._pending_shape = (label, write_value, _SHAPE_PAIRING_SESSION_LIMIT)
+
+    def _check_shape_pairing(self) -> None:
+        if self._pending_shape is None:
+            return
+        label, write_value, sessions_left = self._pending_shape
+        if self.state.layout is not None:
+            _LOGGER.info(
+                "Couch-shape read-scale pairing: wrote shape %s (write-enum %d)"
+                " → device now reports layout raw %d — please report this"
+                " pairing at https://github.com/ojiudezue/ha-lovesac-"
+                "stealthtech/issues",
+                label,
+                write_value,
+                self.state.layout,
+            )
+            self._pending_shape = None
+            return
+        sessions_left -= 1
+        self._pending_shape = (
+            None if sessions_left <= 0 else (label, write_value, sessions_left)
+        )
 
     def queue(
         self, *frames: Frame, optimistic: OptimisticUpdate | None = None
@@ -93,6 +135,7 @@ class StealthTechHub:
                 self.link_ok = True
                 self.link_reason = None
                 self.last_contact = self._clock()
+                self._check_shape_pairing()
             else:
                 self.link_ok = False
                 self.link_reason = LINK_REASON_NO_DATA

@@ -21,6 +21,7 @@ from .const import (
 )
 from .hub import OptimisticUpdate, StealthTechHub
 from .protocol import Frame, StealthTechState
+from .repairs import async_check_unknown_enums
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +56,10 @@ class StealthTechCoordinator(DataUpdateCoordinator[StealthTechState]):
         )
         self.hub = StealthTechHub(self._connect, idle_timeout)
         self._failures = 0
+        # (kind, value) issue ids already raised this run — avoids re-calling
+        # the issue registry every poll (create is idempotent, but cheap
+        # dedupe keeps the log/registry churn at zero).
+        self.reported_enum_issues: set[str] = set()
 
     @property
     def state(self) -> StealthTechState:
@@ -103,6 +108,9 @@ class StealthTechCoordinator(DataUpdateCoordinator[StealthTechState]):
                 ) from err
             return self.hub.state
         self._failures = 0
+        # v0.3 D5: nudge unknown layout/arm/covering values toward the
+        # crowd-sourced enum-report issue form via Repairs.
+        async_check_unknown_enums(self.hass, self)
         return state
 
     async def async_send_frames(

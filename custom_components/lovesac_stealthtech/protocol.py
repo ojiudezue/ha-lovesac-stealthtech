@@ -147,6 +147,29 @@ ARM_TYPE_NAMES: dict[int, str] = {}
 COVERING_NAMES: dict[int, str] = {}
 
 
+# --- Firmware versions -------------------------------------------------------
+# Latest known firmware per component, from libstealthtech
+# characteristics.rs:268-275. CAVEAT (libstealthtech firmware-analysis): these
+# are update-PACKAGE version numbers — the BLE-reported "MCU 1.71" is the
+# version of the update package the component was flashed from, not an
+# internal build number. Updates are only installable through the Lovesac
+# mobile app; there is no public OTA payload, so our update entities are
+# informational (no install support).
+LATEST_VERSIONS: dict[str, tuple[int, int]] = {
+    "mcu": (1, 71),
+    "dsp": (1, 68),
+    "eq": (1, 23),
+}
+
+
+def latest_version_str(component: str) -> str | None:
+    """Render the latest known version for a component ("1.71") or None."""
+    pair = LATEST_VERSIONS.get(component)
+    if pair is None:
+        return None
+    return f"{pair[0]}.{pair[1]}"
+
+
 # --- Frame encoding ---------------------------------------------------------
 @dataclass(frozen=True)
 class Frame:
@@ -228,17 +251,55 @@ def encode_version_request() -> Frame:
     return Frame(CHAR_DEVICE_INFO, bytes([0xAA, 0x01, 0x01, 0x01]))
 
 
-# PROTOCOL-UNCERTAIN: neither source documents the <value> semantics for
-# PlayerControl. [HB commands.ts] exposes setPlayPause(value)/setSkip(value)
-# with no fixed value; [LST] lists the value column as "—". We use value=1 for
-# play/pause toggle and value 0=next / 1=previous for skip AS A GUESS.
-# Verify against hardware before trusting BT transport controls.
+# CONFIRMED (was PROTOCOL-UNCERTAIN): libstealthtech shared.js:861-865 shows
+# the official app writes play/pause with value=1, skip-forward with value=0
+# and skip-back with value=1 — exactly the values guessed below. No change to
+# the encoding; the guess is now source-backed.
 def encode_play_pause(value: int = 1) -> Frame:
     return Frame(CHAR_PLAYER_CONTROL, _format_a(0x05, 0x00, value))
 
 
 def encode_skip(value: int) -> Frame:
     return Frame(CHAR_PLAYER_CONTROL, _format_a(0x05, 0x01, value))
+
+
+# --- Configuration shape (SystemLayout writes) -------------------------------
+# DEAD-END FENCE — do NOT re-add a "Surround" control. libstealthtech removed
+# its surround command upstream in commit 2cb7f25 after verifying the write is
+# a no-op on hardware. Any future "surround" byte found in app captures should
+# be treated as vestigial until proven otherwise.
+
+# WRITE enum for configuration shape, from libstealthtech
+# commands.rs:171-197 (enum) and commands.rs:336 (frame builder):
+# AA 06 <shape> 00 on CHAR_SYSTEM_LAYOUT.
+# NOTE the READ scale is DIFFERENT: the Layout status code reports raw values
+# outside this enum (known fixed point: a physical L-Shape couch reads raw 5,
+# see LAYOUT_NAMES above). The write→read pairing is being decoded via the
+# instrumentation in hub.py.
+class CouchShapeWrite(IntEnum):
+    STRAIGHT = 0
+    L_SHAPE = 1
+    U_SHAPE = 2
+    PIT = 3
+
+
+COUCH_SHAPE_NAMES: dict[CouchShapeWrite, str] = {
+    CouchShapeWrite.STRAIGHT: "Straight",
+    CouchShapeWrite.L_SHAPE: "L-Shape",
+    CouchShapeWrite.U_SHAPE: "U-Shape",
+    CouchShapeWrite.PIT: "Pit",
+}
+COUCH_SHAPE_NAME_TO_WRITE = {n: s for s, n in COUCH_SHAPE_NAMES.items()}
+
+
+def encode_config_shape(shape: CouchShapeWrite) -> Frame:
+    """Configuration-shape write: AA 06 <0|1|2|3> 00.
+
+    [libstealthtech commands.rs:171-197,336]. CAUTION: this write makes the
+    hub recalibrate its surround sound field for the new shape — it is a
+    calibration command, not a cosmetic label.
+    """
+    return Frame(CHAR_SYSTEM_LAYOUT, _format_b(0x06, int(shape)))
 
 
 # --- State -----------------------------------------------------------------

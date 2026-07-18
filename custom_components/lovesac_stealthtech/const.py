@@ -5,6 +5,14 @@ DOMAIN = "lovesac_stealthtech"
 CONF_POLL_INTERVAL = "poll_interval"
 CONF_IDLE_TIMEOUT = "idle_timeout"
 
+# Local enum-label overrides (v0.3 D4): operator-supplied names for the raw
+# layout / arm-type / covering sensor values while the shipped tables are
+# still being crowd-sourced. Precedence: shipped table > operator override >
+# raw int. Empty string = unset.
+CONF_MY_COUCH_SHAPE = "my_couch_shape"
+CONF_MY_ARM_STYLE = "my_arm_style"
+CONF_MY_FABRIC = "my_fabric"
+
 DEFAULT_POLL_INTERVAL = 90  # seconds (matches homebridge plugin default)
 DEFAULT_IDLE_TIMEOUT = 5.0  # seconds of notification silence before disconnect
 

@@ -17,7 +17,12 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import protocol
-from .const import DOMAIN
+from .const import (
+    CONF_MY_ARM_STYLE,
+    CONF_MY_COUCH_SHAPE,
+    CONF_MY_FABRIC,
+    DOMAIN,
+)
 from .coordinator import StealthTechCoordinator
 from .entity import StealthTechEntity
 
@@ -45,11 +50,27 @@ def _source_name(coordinator: StealthTechCoordinator) -> str | None:
     return None if src is None else protocol.SOURCE_NAMES[src]
 
 
-def _mapped_enum(raw: int | None, names: dict[int, str]) -> str | int | None:
-    """Render the empirically-bound name when known, else the raw int."""
+def _override(coordinator, conf_key: str) -> str | None:
+    """Operator-supplied label from the options flow (v0.3 D4); '' = unset.
+
+    None-safe against test doubles without a config_entry."""
+    entry = getattr(coordinator, "config_entry", None)
+    options = getattr(entry, "options", None) or {}
+    return options.get(conf_key) or None
+
+
+def _mapped_enum(
+    raw: int | None, names: dict[int, str], override: str | None = None
+) -> str | int | None:
+    """Render with precedence: shipped table > operator override > raw int."""
     if raw is None:
         return None
-    return names.get(raw, raw)
+    mapped = names.get(raw)
+    if mapped is not None:
+        return mapped
+    if override is not None:
+        return override
+    return raw
 
 
 def _enum_attributes(raw: int | None) -> dict[str, object]:
@@ -106,21 +127,33 @@ DESCRIPTIONS: tuple[StealthTechSensorDescription, ...] = (
         key="layout", translation_key="layout",
         icon="mdi:floor-plan",
         entity_category=EntityCategory.DIAGNOSTIC,
-        get_value=lambda c: _mapped_enum(c.state.layout, protocol.LAYOUT_NAMES),
+        get_value=lambda c: _mapped_enum(
+            c.state.layout,
+            protocol.LAYOUT_NAMES,
+            _override(c, CONF_MY_COUCH_SHAPE),
+        ),
         attributes=lambda c: _enum_attributes(c.state.layout),
     ),
     StealthTechSensorDescription(
         key="covering", translation_key="covering",
         icon="mdi:texture-box",
         entity_category=EntityCategory.DIAGNOSTIC,
-        get_value=lambda c: _mapped_enum(c.state.covering, protocol.COVERING_NAMES),
+        get_value=lambda c: _mapped_enum(
+            c.state.covering,
+            protocol.COVERING_NAMES,
+            _override(c, CONF_MY_FABRIC),
+        ),
         attributes=lambda c: _enum_attributes(c.state.covering),
     ),
     StealthTechSensorDescription(
         key="arm_type", translation_key="arm_type",
         icon="mdi:sofa-single-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
-        get_value=lambda c: _mapped_enum(c.state.arm_type, protocol.ARM_TYPE_NAMES),
+        get_value=lambda c: _mapped_enum(
+            c.state.arm_type,
+            protocol.ARM_TYPE_NAMES,
+            _override(c, CONF_MY_ARM_STYLE),
+        ),
         attributes=lambda c: _enum_attributes(c.state.arm_type),
     ),
     StealthTechSensorDescription(

@@ -25,6 +25,7 @@ from typing import Protocol as TypingProtocol
 from .protocol import (
     CHAR_UPSTREAM,
     Frame,
+    StatusCode,
     StealthTechState,
     StatusNotification,
     VersionNotification,
@@ -35,6 +36,27 @@ from .protocol import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Power-off burst guard [libstealthtech commands.rs:452-468 is_audio_state]:
+# during a power-off burst the hub emits garbage audio/EQ status frames, so
+# once a POWER=off status arrives in a session's drain, subsequent audio/EQ
+# codes are discarded for the remainder of that session. POWER, SUBWOOFER,
+# the raw config codes (LAYOUT/COVERING/ARM_TYPE) and version frames still
+# apply. The guard is session-scoped: the next session starts clean.
+_AUDIO_EQ_CODES = frozenset(
+    {
+        StatusCode.VOLUME,
+        StatusCode.CENTER_VOLUME,
+        StatusCode.TREBLE,
+        StatusCode.BASS,
+        StatusCode.MUTE,
+        StatusCode.QUIET_MODE,
+        StatusCode.BALANCE,
+        StatusCode.PRESET,
+        StatusCode.SOURCE,
+        StatusCode.REAR_VOLUME,
+    }
+)
 
 # Delay between successive characteristic writes; the hub's MCU relays frames
 # over UART and can drop back-to-back writes.
@@ -54,6 +76,10 @@ class BleClientLike(TypingProtocol):
 
     async def stop_notify(self, char_uuid: str) -> None: ...
 
+    # AUDIT (v0.3 D6a): every write in this module passes response=False —
+    # write-WITHOUT-response is mandatory. libstealthtech found that
+    # write-with-response (WithResponse) hangs the device; do not "fix" a
+    # write to response=True.
     async def write_gatt_char(
         self, char_uuid: str, data: bytes, response: bool = False
     ) -> None: ...
@@ -86,12 +112,25 @@ async def run_session(
     loop = asyncio.get_running_loop()
     last_rx = loop.time()
     applied = 0
+    power_off_seen = False  # burst guard, see _AUDIO_EQ_CODES above
 
     def _on_notify(_char: object, data: bytearray) -> None:
-        nonlocal last_rx, applied
+        nonlocal last_rx, applied, power_off_seen
         last_rx = loop.time()
         parsed = parse_notification(bytes(data))
         if isinstance(parsed, StatusNotification):
+            if parsed.code == StatusCode.POWER and parsed.value == 1:
+                # READ power is inverted: value 1 = OFF. [LST / HB responses.ts]
+                power_off_seen = True
+            elif power_off_seen and parsed.code in _AUDIO_EQ_CODES:
+                _LOGGER.debug(
+                    "Discarding %s=%d after power-off in this session "
+                    "(power-off burst emits garbage audio/EQ status)",
+                    parsed.code.name,
+                    parsed.value,
+                )
+                quiet.set()
+                return
             apply_status(state, parsed)
             applied += 1
         elif isinstance(parsed, VersionNotification):
