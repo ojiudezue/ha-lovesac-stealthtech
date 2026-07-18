@@ -1,9 +1,14 @@
 """BLE session layer for the StealthTech hub.
 
 The hub accepts only ONE BLE connection. Contract implemented here:
-connect -> subscribe UpStream -> request state dump -> drain notifications
-until they go quiet -> send any queued command frames -> disconnect after
-idle. The connection is NEVER held between sessions.
+connect -> subscribe UpStream -> flush any queued command frames -> request
+firmware versions -> request state dump -> drain notifications until they go
+quiet -> disconnect. The connection is NEVER held between sessions.
+
+Writes go FIRST so the state dump on the same connection is authoritative
+for post-write state: optimistic entity values get corrected within seconds
+(e.g. EQ writes the hub silently ignores in standby snap back to truth)
+instead of waiting for the next 90 s poll.
 
 This module has no hard Home Assistant import; the bleak client is injected
 via a `connect` callable so the session logic is testable with a fake client.
@@ -25,6 +30,7 @@ from .protocol import (
     VersionNotification,
     apply_status,
     encode_state_request,
+    encode_version_request,
     parse_notification,
 )
 
@@ -34,7 +40,8 @@ _LOGGER = logging.getLogger(__name__)
 # over UART and can drop back-to-back writes.
 # PROTOCOL-UNCERTAIN: neither source documents a required inter-write gap; the
 # homebridge plugin serializes writes through noble without an explicit delay.
-# 100 ms is a conservative choice - tune against hardware.
+# 100 ms is a conservative choice - survived normal slider use on hardware
+# (acceptance ledger item 2, 2026-07-18).
 INTER_WRITE_DELAY = 0.1
 
 
@@ -63,8 +70,9 @@ async def run_session(
     pending_frames: list[Frame],
     idle_timeout: float,
     request_dump: bool = True,
+    request_versions: bool = True,
 ) -> StealthTechState:
-    """Run one full connect->dump->drain->write->disconnect session.
+    """Run one full connect->write->dump->drain->disconnect session.
 
     `pending_frames` is consumed (cleared) as frames are written.
     Raises whatever `connect` raises on connection failure.
@@ -87,11 +95,26 @@ async def run_session(
     try:
         await client.start_notify(CHAR_UPSTREAM, _on_notify)
 
+        # Flush queued commands first (oldest first) so the dump below
+        # reflects post-write state and corrects optimistic entity values.
+        while pending_frames:
+            frame = pending_frames.pop(0)
+            await client.write_gatt_char(frame.char_uuid, frame.data, response=False)
+            await asyncio.sleep(INTER_WRITE_DELAY)
+
+        if request_versions:
+            version = encode_version_request()
+            await client.write_gatt_char(
+                version.char_uuid, version.data, response=False
+            )
+            await asyncio.sleep(INTER_WRITE_DELAY)
+
         if request_dump:
             dump = encode_state_request()
             await client.write_gatt_char(dump.char_uuid, dump.data, response=False)
 
-        # Drain notifications until idle_timeout of silence.
+        # Drain notifications (command echoes, version frames, the dump)
+        # until idle_timeout of silence.
         while True:
             quiet.clear()
             remaining = idle_timeout - (loop.time() - last_rx)
@@ -101,19 +124,6 @@ async def run_session(
                 await asyncio.wait_for(quiet.wait(), timeout=remaining)
             except asyncio.TimeoutError:  # noqa: UP041 - builtin alias only on py>=3.11
                 break
-
-        # Send queued commands, oldest first.
-        while pending_frames:
-            frame = pending_frames.pop(0)
-            await client.write_gatt_char(frame.char_uuid, frame.data, response=False)
-            await asyncio.sleep(INTER_WRITE_DELAY)
-
-        # Brief post-write drain so command echoes update state before we drop.
-        if last_rx is not None:
-            try:
-                await asyncio.wait_for(quiet.wait(), timeout=idle_timeout)
-            except asyncio.TimeoutError:  # noqa: UP041 - builtin alias only on py>=3.11
-                pass
     finally:
         try:
             await client.stop_notify(CHAR_UPSTREAM)

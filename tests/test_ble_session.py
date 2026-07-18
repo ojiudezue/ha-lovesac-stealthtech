@@ -1,6 +1,6 @@
-"""Fake-client tests for the connect -> dump -> drain -> write -> disconnect
-session and the queued-write path."""
-import asyncio
+"""Fake-client tests for the connect -> write -> version -> dump -> drain ->
+disconnect session and the queued-write path."""
+from __future__ import annotations
 
 import pytest
 
@@ -10,8 +10,9 @@ from lovesac_stealthtech import ble, protocol as p
 class FakeClient:
     """Records the session's calls and replays canned notifications."""
 
-    def __init__(self, notifications: list[bytes]):
+    def __init__(self, notifications: list[bytes], versions: list[bytes] | None = None):
         self.notifications = notifications
+        self.versions = versions or []
         self.calls: list[tuple] = []
         self._cb = None
 
@@ -24,22 +25,35 @@ class FakeClient:
 
     async def write_gatt_char(self, char_uuid, data, response=False):
         self.calls.append(("write", char_uuid, bytes(data)))
-        # State-dump request triggers the canned notification burst.
+        # State-dump / version requests trigger the canned notification bursts.
         if bytes(data) == p.encode_state_request().data:
             for raw in self.notifications:
+                self._cb(None, bytearray(raw))
+        elif bytes(data) == p.encode_version_request().data:
+            for raw in self.versions:
                 self._cb(None, bytearray(raw))
 
     async def disconnect(self):
         self.calls.append(("disconnect",))
+
+    def writes(self):
+        return [c for c in self.calls if c[0] == "write"]
 
 
 def notif(code, value):
     return bytes([0xCC, 0x05, 0xAA, code, value])
 
 
+def version_notif(component, major, minor):
+    return bytes([0xCC, 0x06, 0xAA, 0x01, 0x03, component, major, minor])
+
+
 @pytest.fixture
 def fake():
-    return FakeClient([notif(0x0A, 0x00), notif(0x01, 20), notif(0x09, 1)])
+    return FakeClient(
+        [notif(0x0A, 0x00), notif(0x01, 20), notif(0x09, 1)],
+        versions=[version_notif(0x01, 1, 71)],
+    )
 
 
 async def run(fake, pending=None, idle=0.05):
@@ -58,9 +72,10 @@ async def run(fake, pending=None, idle=0.05):
 async def test_connect_dump_drain_disconnect_cycle(fake):
     state, connects = await run(fake)
     assert connects == [1]  # exactly one connection per session
-    # Ordering: notify subscription, then dump request, then teardown.
+    # Ordering: notify subscription, version request, dump request, teardown.
     assert fake.calls[0] == ("start_notify", p.CHAR_UPSTREAM)
-    assert fake.calls[1] == ("write", p.CHAR_DEVICE_INFO, p.encode_state_request().data)
+    assert fake.calls[1] == ("write", p.CHAR_DEVICE_INFO, p.encode_version_request().data)
+    assert fake.calls[2] == ("write", p.CHAR_DEVICE_INFO, p.encode_state_request().data)
     assert fake.calls[-2] == ("stop_notify", p.CHAR_UPSTREAM)
     assert fake.calls[-1] == ("disconnect",)
     # Notifications were applied to state.
@@ -70,17 +85,47 @@ async def test_connect_dump_drain_disconnect_cycle(fake):
 
 
 @pytest.mark.asyncio
-async def test_queued_writes_flushed_after_drain(fake, monkeypatch):
+async def test_version_request_sent_once_per_session(fake):
+    state, _ = await run(fake)
+    version_writes = [
+        c for c in fake.writes() if c[2] == p.encode_version_request().data
+    ]
+    assert len(version_writes) == 1
+    assert state.versions == {"mcu": "1.71"}
+
+
+@pytest.mark.asyncio
+async def test_queued_writes_flushed_before_dump(fake, monkeypatch):
+    """D1: queued commands go FIRST; the dump on the same connection follows
+    so it is authoritative for post-write state."""
     monkeypatch.setattr(ble, "INTER_WRITE_DELAY", 0)
     pending = [p.encode_volume(5), p.encode_mute(True)]
     await run(fake, pending=pending)
-    writes = [c for c in fake.calls if c[0] == "write"]
-    # dump + the two queued commands, in FIFO order
-    assert writes[1] == ("write", p.CHAR_EQ_CONTROL, p.encode_volume(5).data)
-    assert writes[2] == ("write", p.CHAR_EQ_CONTROL, p.encode_mute(True).data)
+    writes = fake.writes()
+    # queued commands in FIFO order, then version request, then dump — all
+    # before disconnect.
+    assert writes[0] == ("write", p.CHAR_EQ_CONTROL, p.encode_volume(5).data)
+    assert writes[1] == ("write", p.CHAR_EQ_CONTROL, p.encode_mute(True).data)
+    assert writes[2] == ("write", p.CHAR_DEVICE_INFO, p.encode_version_request().data)
+    assert writes[3] == ("write", p.CHAR_DEVICE_INFO, p.encode_state_request().data)
     assert pending == []  # queue consumed
-    # Writes happen before disconnect.
-    assert fake.calls.index(writes[2]) < fake.calls.index(("disconnect",))
+    assert fake.calls.index(writes[3]) < fake.calls.index(("disconnect",))
+
+
+@pytest.mark.asyncio
+async def test_dump_corrects_state_after_writes(monkeypatch):
+    """The dump's values win over anything set before the session (the
+    optimistic-write correction path, e.g. EQ writes ignored in standby)."""
+    monkeypatch.setattr(ble, "INTER_WRITE_DELAY", 0)
+    fake = FakeClient([notif(0x01, 12)])  # device says volume is 12
+    state = p.StealthTechState()
+    state.volume = 30  # optimistic value the device refused
+
+    async def connect():
+        return fake
+
+    await ble.run_session(connect, state, [p.encode_volume(30)], 0.05)
+    assert state.volume == 12
 
 
 @pytest.mark.asyncio
