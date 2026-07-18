@@ -93,3 +93,18 @@ fallback knowledge only; (c) PlayerControl PROTOCOL-UNCERTAIN → CONFIRMED
 
 - Full suite green (88 baseline + new tests), py_compile clean on all modules.
 - manifest.json version 0.3.0; strings/en.json identical.
+
+## Live validation 2026-07-18 (v0.3.0 + v0.3.1 hotfix)
+First restart caught a real load failure: the three update entities raised
+TypeError because supported_features was a bare int where current Home
+Assistant requires an UpdateEntityFeature flag. Fixed in v0.3.1 within
+minutes, with a regression test, a stub upgrade enforcing the flag
+contract for the whole class of bug, and a mutation check proving the
+test is load bearing. Second restart, all criteria pass: three update
+entities read off with installed equal to latest (1.71, 1.68, 1.23), no
+false update-available before the first dump, DSP version filled after a
+partial first burst, layout sensor and Couch Shape select both read
+L-Shape, override fields present in options, zero integration errors.
+Remaining live items: first real shape write pairing (operator sets
+L-Shape from the select), Repairs nudge fires only for unmapped values
+(none currently), coexistence and transport paces on the couch.
