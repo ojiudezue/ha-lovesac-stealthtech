@@ -1,0 +1,51 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Lovesac StealthTech",
+        "description": "Enter the Bluetooth MAC address of the StealthTech hub (find it with a BLE scanner; the device advertises the excelpoint.com service).",
+        "data": {
+          "address": "Bluetooth address"
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "Lovesac StealthTech",
+        "description": "Set up {name}? Note: the hub accepts only one BLE connection — close the Lovesac mobile app before pairing."
+      }
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "StealthTech options",
+        "data": {
+          "poll_interval": "Poll interval (seconds)",
+          "idle_timeout": "Idle disconnect timeout (seconds)"
+        },
+        "data_description": {
+          "poll_interval": "How often to connect and refresh state. The connection is dropped between polls so the Lovesac app can still connect.",
+          "idle_timeout": "Seconds of notification silence before disconnecting."
+        }
+      }
+    }
+  },
+  "entity": {
+    "number": {
+      "bass": { "name": "Bass" },
+      "treble": { "name": "Treble" },
+      "center_volume": { "name": "Center volume" },
+      "rear_volume": { "name": "Rear volume" },
+      "balance": { "name": "Balance" }
+    },
+    "switch": {
+      "quiet_mode": { "name": "Quiet mode" }
+    },
+    "binary_sensor": {
+      "subwoofer": { "name": "Subwoofer" }
+    }
+  }
+}
