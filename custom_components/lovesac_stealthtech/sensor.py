@@ -31,14 +31,29 @@ AUDIO_CAPABILITY_SOURCE = (
 )
 
 # D6: enum values are collected raw until the table is reverse-engineered.
+# Mapped names land in protocol.LAYOUT_NAMES / ARM_TYPE_NAMES / COVERING_NAMES
+# from user-reported app-config vs raw-value pairs.
 RAW_DECODING_NOTE = (
-    "enum unmapped — values collected to build the table (ledger item 6)"
+    "enum table built from user reports — pair your raw value with the "
+    "Lovesac app's setting at "
+    "https://github.com/ojiudezue/ha-lovesac-stealthtech/issues"
 )
 
 
 def _source_name(coordinator: StealthTechCoordinator) -> str | None:
     src = coordinator.state.source
     return None if src is None else protocol.SOURCE_NAMES[src]
+
+
+def _mapped_enum(raw: int | None, names: dict[int, str]) -> str | int | None:
+    """Render the empirically-bound name when known, else the raw int."""
+    if raw is None:
+        return None
+    return names.get(raw, raw)
+
+
+def _enum_attributes(raw: int | None) -> dict[str, object]:
+    return {"raw_value": raw, "decoding": RAW_DECODING_NOTE}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -54,10 +69,12 @@ DESCRIPTIONS: tuple[StealthTechSensorDescription, ...] = (
     # Glanceable living-room state — deliberately NOT diagnostic-category.
     StealthTechSensorDescription(
         key="input", translation_key="input",
+        icon="mdi:video-input-hdmi",
         get_value=_source_name,
     ),
     StealthTechSensorDescription(
         key="audio_capability", translation_key="audio_capability",
+        icon="mdi:surround-sound",
         entity_category=EntityCategory.DIAGNOSTIC,
         get_value=lambda c: AUDIO_CAPABILITY,
         attributes=lambda c: {
@@ -69,36 +86,42 @@ DESCRIPTIONS: tuple[StealthTechSensorDescription, ...] = (
     ),
     StealthTechSensorDescription(
         key="mcu_firmware", translation_key="mcu_firmware",
+        icon="mdi:chip",
         entity_category=EntityCategory.DIAGNOSTIC,
         get_value=lambda c: c.state.versions.get("mcu"),
     ),
     StealthTechSensorDescription(
         key="dsp_firmware", translation_key="dsp_firmware",
+        icon="mdi:chip",
         entity_category=EntityCategory.DIAGNOSTIC,
         get_value=lambda c: c.state.versions.get("dsp"),
     ),
     StealthTechSensorDescription(
         key="eq_firmware", translation_key="eq_firmware",
+        icon="mdi:chip",
         entity_category=EntityCategory.DIAGNOSTIC,
         get_value=lambda c: c.state.versions.get("eq"),
     ),
     StealthTechSensorDescription(
         key="layout", translation_key="layout",
+        icon="mdi:floor-plan",
         entity_category=EntityCategory.DIAGNOSTIC,
-        get_value=lambda c: c.state.layout,
-        attributes=lambda c: {"decoding": RAW_DECODING_NOTE},
+        get_value=lambda c: _mapped_enum(c.state.layout, protocol.LAYOUT_NAMES),
+        attributes=lambda c: _enum_attributes(c.state.layout),
     ),
     StealthTechSensorDescription(
         key="covering", translation_key="covering",
+        icon="mdi:texture-box",
         entity_category=EntityCategory.DIAGNOSTIC,
-        get_value=lambda c: c.state.covering,
-        attributes=lambda c: {"decoding": RAW_DECODING_NOTE},
+        get_value=lambda c: _mapped_enum(c.state.covering, protocol.COVERING_NAMES),
+        attributes=lambda c: _enum_attributes(c.state.covering),
     ),
     StealthTechSensorDescription(
         key="arm_type", translation_key="arm_type",
+        icon="mdi:sofa-single-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
-        get_value=lambda c: c.state.arm_type,
-        attributes=lambda c: {"decoding": RAW_DECODING_NOTE},
+        get_value=lambda c: _mapped_enum(c.state.arm_type, protocol.ARM_TYPE_NAMES),
+        attributes=lambda c: _enum_attributes(c.state.arm_type),
     ),
     StealthTechSensorDescription(
         key="last_contact", translation_key="last_contact",

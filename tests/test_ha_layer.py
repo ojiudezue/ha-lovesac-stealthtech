@@ -167,3 +167,93 @@ def test_last_contact_sensor_available_during_sustained_outage():
 def test_other_sensors_follow_coordinator_availability():
     sensor = sensor_mod.StealthTechSensor(fake_coordinator(), _desc("mcu_firmware"))
     assert sensor.available is False
+
+
+# --- v0.2.2: icons ----------------------------------------------------------
+EXPECTED_ICONS = {
+    "input": "mdi:video-input-hdmi",
+    "audio_capability": "mdi:surround-sound",
+    "mcu_firmware": "mdi:chip",
+    "dsp_firmware": "mdi:chip",
+    "eq_firmware": "mdi:chip",
+    "layout": "mdi:floor-plan",
+    "covering": "mdi:texture-box",
+    "arm_type": "mdi:sofa-single-outline",
+    # last_contact keeps the timestamp device-class default icon on purpose.
+    "last_contact": None,
+}
+
+
+def test_sensor_icons_match_expected_table():
+    assert {d.key: d.icon for d in sensor_mod.DESCRIPTIONS} == EXPECTED_ICONS
+
+
+# --- v0.2.2: renames (strings.json + en.json in lockstep) -------------------
+@pytest.mark.parametrize(
+    "path", ["strings.json", "translations/en.json"], ids=["strings", "en"]
+)
+def test_entity_renames(path):
+    import json
+
+    data = json.loads((PKG_DIR / path).read_text())
+    entity = data["entity"]
+    assert entity["sensor"]["arm_type"]["name"] == "Couch Arm Type (raw)"
+    assert entity["sensor"]["covering"]["name"] == "Couch Cover (raw)"
+    assert entity["binary_sensor"]["subwoofer"]["name"] == "Subwoofer link"
+
+
+def test_strings_and_en_translation_identical():
+    assert (PKG_DIR / "strings.json").read_text() == (
+        PKG_DIR / "translations/en.json"
+    ).read_text()
+
+
+# --- v0.2.2: enum-map mechanism ---------------------------------------------
+from lovesac_stealthtech import protocol  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("key", "attr", "names"),
+    [
+        ("layout", "layout", "LAYOUT_NAMES"),
+        ("covering", "covering", "COVERING_NAMES"),
+        ("arm_type", "arm_type", "ARM_TYPE_NAMES"),
+    ],
+)
+def test_raw_enum_unmapped_renders_int_with_raw_value_attr(key, attr, names):
+    coordinator = fake_coordinator()
+    setattr(coordinator.state, attr, 0x42)
+    sensor = sensor_mod.StealthTechSensor(coordinator, _desc(key))
+    assert sensor.native_value == 0x42  # maps ship empty; raw int shows
+    attrs = sensor.extra_state_attributes
+    assert attrs["raw_value"] == 0x42
+    assert "issues" in attrs["decoding"]  # points at the issue tracker
+
+
+@pytest.mark.parametrize(
+    ("key", "attr", "names"),
+    [
+        ("layout", "layout", "LAYOUT_NAMES"),
+        ("covering", "covering", "COVERING_NAMES"),
+        ("arm_type", "arm_type", "ARM_TYPE_NAMES"),
+    ],
+)
+def test_raw_enum_mapped_renders_name_keeps_raw_attr(key, attr, names, monkeypatch):
+    monkeypatch.setitem(getattr(protocol, names), 3, "Test Name")
+    coordinator = fake_coordinator()
+    setattr(coordinator.state, attr, 3)
+    sensor = sensor_mod.StealthTechSensor(coordinator, _desc(key))
+    assert sensor.native_value == "Test Name"
+    assert sensor.extra_state_attributes["raw_value"] == 3
+
+
+def test_enum_name_maps_ship_empty():
+    assert protocol.LAYOUT_NAMES == {}
+    assert protocol.ARM_TYPE_NAMES == {}
+    assert protocol.COVERING_NAMES == {}
+
+
+def test_raw_enum_none_stays_none():
+    sensor = sensor_mod.StealthTechSensor(fake_coordinator(), _desc("layout"))
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes["raw_value"] is None

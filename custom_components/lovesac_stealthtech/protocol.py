@@ -126,6 +126,19 @@ SOURCE_NAMES: dict[Source, str] = {
 }
 SOURCE_NAME_TO_VALUE = {name: src for src, name in SOURCE_NAMES.items()}
 
+# --- Empirical enum-binding project (layout / arm type / covering) ----------
+# The firmware names layouts Straight / L-shape / U-shape / Pit (per
+# libstealthtech firmware-analysis.md), but no public binding exists between
+# those names and the raw byte values reported on the LAYOUT / ARM_TYPE /
+# COVERING status codes. These maps start EMPTY on purpose: entries get added
+# as users report app-config vs raw-value pairs on the issue tracker
+# (https://github.com/ojiudezue/ha-lovesac-stealthtech/issues). The raw
+# sensors render the mapped name when a value is present here, else the raw
+# int, and always expose the raw int as a `raw_value` attribute.
+LAYOUT_NAMES: dict[int, str] = {}
+ARM_TYPE_NAMES: dict[int, str] = {}
+COVERING_NAMES: dict[int, str] = {}
+
 
 # --- Frame encoding ---------------------------------------------------------
 @dataclass(frozen=True)

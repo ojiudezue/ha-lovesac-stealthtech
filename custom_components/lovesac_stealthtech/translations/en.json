@@ -11,7 +11,7 @@
       },
       "bluetooth_confirm": {
         "title": "Lovesac StealthTech",
-        "description": "Set up {name}? Note: the hub accepts only one BLE connection — close the Lovesac mobile app before pairing."
+        "description": "Set up {name}? Note: the hub accepts only one BLE connection \u2014 close the Lovesac mobile app before pairing."
       }
     },
     "abort": {
@@ -35,36 +35,76 @@
   },
   "entity": {
     "number": {
-      "bass": { "name": "Bass" },
-      "treble": { "name": "Treble" },
-      "center_volume": { "name": "Center volume" },
-      "rear_volume": { "name": "Rear volume" },
-      "balance": { "name": "Balance" }
+      "bass": {
+        "name": "Bass"
+      },
+      "treble": {
+        "name": "Treble"
+      },
+      "center_volume": {
+        "name": "Center volume"
+      },
+      "rear_volume": {
+        "name": "Rear volume"
+      },
+      "balance": {
+        "name": "Balance"
+      }
     },
     "switch": {
-      "quiet_mode": { "name": "Quiet Couch Mode" }
+      "quiet_mode": {
+        "name": "Quiet Couch Mode"
+      }
     },
     "binary_sensor": {
-      "subwoofer": { "name": "Subwoofer" },
-      "control_link": { "name": "Control link" }
+      "subwoofer": {
+        "name": "Subwoofer link"
+      },
+      "control_link": {
+        "name": "Control link"
+      }
     },
     "sensor": {
-      "input": { "name": "Input" },
-      "audio_capability": { "name": "Audio capability" },
-      "mcu_firmware": { "name": "MCU firmware" },
-      "dsp_firmware": { "name": "DSP firmware" },
-      "eq_firmware": { "name": "EQ firmware" },
-      "layout": { "name": "Layout (raw)" },
-      "covering": { "name": "Covering (raw)" },
-      "arm_type": { "name": "Arm type (raw)" },
-      "last_contact": { "name": "Last contact" }
+      "input": {
+        "name": "Input"
+      },
+      "audio_capability": {
+        "name": "Audio capability"
+      },
+      "mcu_firmware": {
+        "name": "MCU firmware"
+      },
+      "dsp_firmware": {
+        "name": "DSP firmware"
+      },
+      "eq_firmware": {
+        "name": "EQ firmware"
+      },
+      "layout": {
+        "name": "Layout (raw)"
+      },
+      "covering": {
+        "name": "Couch Cover (raw)"
+      },
+      "arm_type": {
+        "name": "Couch Arm Type (raw)"
+      },
+      "last_contact": {
+        "name": "Last contact"
+      }
     },
     "select": {
-      "input": { "name": "Input" },
-      "sound_mode": { "name": "Sound mode" }
+      "input": {
+        "name": "Input"
+      },
+      "sound_mode": {
+        "name": "Sound mode"
+      }
     },
     "button": {
-      "sync": { "name": "Sync" }
+      "sync": {
+        "name": "Sync"
+      }
     }
   }
 }

@@ -150,6 +150,7 @@ class SensorEntityDescription:
     translation_key: str | None = None
     entity_category: str | None = None
     device_class: str | None = None
+    icon: str | None = None
 
 
 class SensorEntity:
