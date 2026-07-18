@@ -349,8 +349,10 @@ def test_strings_cover_new_surfaces(path):
 @pytest.fixture(autouse=True)
 def _clear_issues():
     ha_stub.created_issues.clear()
+    ha_stub.deleted_issues.clear()
     yield
     ha_stub.created_issues.clear()
+    ha_stub.deleted_issues.clear()
 
 
 def test_unknown_enum_raises_dismissible_issue_once():
@@ -401,6 +403,49 @@ def test_each_kind_value_pair_gets_its_own_issue():
     repairs_mod.async_check_unknown_enums(None, coordinator)
     ids = {i["issue_id"] for i in ha_stub.created_issues}
     assert ids == {"unknown_enum_arm_type_2", "unknown_enum_covering_9"}
+
+
+def test_operator_override_retracts_previously_reported_issue():
+    """A-3: setting the local override deletes the already-raised issue."""
+    coordinator = fake_coordinator(config_entry=entry_with_options())
+    coordinator.state.layout = 7
+    repairs_mod.async_check_unknown_enums(None, coordinator)
+    assert len(ha_stub.created_issues) == 1
+    coordinator.config_entry = entry_with_options(my_couch_shape="Mine")
+    repairs_mod.async_check_unknown_enums(None, coordinator)
+    assert ha_stub.deleted_issues == [
+        (repairs_mod.DOMAIN, "unknown_enum_layout_7")
+    ]
+    assert coordinator.reported_enum_issues == set()
+    assert len(ha_stub.created_issues) == 1  # nothing re-raised
+
+
+def test_shipped_binding_update_retracts_previously_reported_issue(monkeypatch):
+    """A-3: a table update that now maps the value deletes the old issue."""
+    coordinator = fake_coordinator(config_entry=entry_with_options())
+    coordinator.state.layout = 7
+    repairs_mod.async_check_unknown_enums(None, coordinator)
+    assert coordinator.reported_enum_issues == {"unknown_enum_layout_7"}
+    monkeypatch.setitem(p.LAYOUT_NAMES, 7, "Newly Decoded")
+    repairs_mod.async_check_unknown_enums(None, coordinator)
+    assert ha_stub.deleted_issues == [
+        (repairs_mod.DOMAIN, "unknown_enum_layout_7")
+    ]
+    assert coordinator.reported_enum_issues == set()
+    assert len(ha_stub.created_issues) == 1  # only the original create
+
+
+def test_delete_tracked_issues_clears_everything():
+    """B-LOW-1 helper: unload retracts every tracked issue."""
+    coordinator = fake_coordinator(
+        reported_enum_issues={"unknown_enum_layout_7", "unknown_enum_arm_type_2"}
+    )
+    repairs_mod.async_delete_tracked_issues(None, coordinator)
+    assert set(ha_stub.deleted_issues) == {
+        (repairs_mod.DOMAIN, "unknown_enum_layout_7"),
+        (repairs_mod.DOMAIN, "unknown_enum_arm_type_2"),
+    }
+    assert coordinator.reported_enum_issues == set()
 
 
 def test_issue_template_field_ids_match_repairs_urls():

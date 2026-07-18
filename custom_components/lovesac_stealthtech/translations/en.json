@@ -107,7 +107,8 @@
         "name": "Sound mode"
       },
       "couch_shape": {
-        "name": "Couch Shape"
+        "name": "Couch Shape",
+        "description": "After setting a shape, the readback may stay blank until the couch's raw layout value is decoded — the device reports layout on a different scale than the write command, so the current selection only displays once the shipped table maps the raw value."
       }
     },
     "button": {

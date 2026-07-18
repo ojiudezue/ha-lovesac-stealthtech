@@ -64,6 +64,19 @@ def async_check_unknown_enums(hass: HomeAssistant, coordinator) -> None:
     state = coordinator.state
     for attr, kind, table, override_key, field_id in ENUM_KINDS:
         raw = getattr(state, attr)
+        # A-3 / B-LOW-1: retract previously-raised issues that are now
+        # suppressed — the operator set the local override, or a shipped
+        # table update now maps the reported value.
+        # `async_delete_issue(hass, domain, issue_id)` signature verified
+        # against HA core 2024.11.0 helpers/issue_registry.py.
+        prefix = f"unknown_enum_{attr}_"
+        for issue_id in [
+            i for i in coordinator.reported_enum_issues if i.startswith(prefix)
+        ]:
+            value = int(issue_id[len(prefix):])
+            if options.get(override_key) or value in table:
+                ir.async_delete_issue(hass, DOMAIN, issue_id)
+                coordinator.reported_enum_issues.discard(issue_id)
         if raw is None or raw in table or options.get(override_key):
             continue
         issue_id = f"unknown_enum_{attr}_{raw}"
@@ -80,3 +93,14 @@ def async_check_unknown_enums(hass: HomeAssistant, coordinator) -> None:
             translation_placeholders={"kind": kind, "value": str(raw)},
             learn_more_url=prefilled_report_url(field_id, raw, state.versions),
         )
+
+
+def async_delete_tracked_issues(hass: HomeAssistant, coordinator) -> None:
+    """Retract every Repairs issue this coordinator raised (entry unload).
+
+    B-LOW-1: without this, an unloaded/removed entry leaves its unknown-enum
+    nudges orphaned in the issue registry.
+    """
+    for issue_id in coordinator.reported_enum_issues:
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+    coordinator.reported_enum_issues.clear()

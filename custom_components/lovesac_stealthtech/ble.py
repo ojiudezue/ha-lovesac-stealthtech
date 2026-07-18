@@ -90,6 +90,17 @@ class BleClientLike(TypingProtocol):
 ConnectCallable = Callable[[], Awaitable[BleClientLike]]
 
 
+def _monotonic(loop: asyncio.AbstractEventLoop) -> float:
+    """Session clock — test seam ONLY.
+
+    In production this is exactly ``loop.time()`` (no behavior change). The
+    ble-session tests substitute a virtual clock so the idle-drain window
+    ends deterministically once the fake client has delivered every frame,
+    instead of after a load-sensitive wall-clock wait.
+    """
+    return loop.time()
+
+
 async def run_session(
     connect: ConnectCallable,
     state: StealthTechState,
@@ -110,13 +121,16 @@ async def run_session(
     client = await connect()
     quiet = asyncio.Event()
     loop = asyncio.get_running_loop()
-    last_rx = loop.time()
+    last_rx = _monotonic(loop)
     applied = 0
-    power_off_seen = False  # burst guard, see _AUDIO_EQ_CODES above
+    # Burst guard, see _AUDIO_EQ_CODES above. NOTE: a POWER=on status does
+    # NOT clear this latch within the session by design — the next session's
+    # dump corrects any state the guard discarded.
+    power_off_seen = False
 
     def _on_notify(_char: object, data: bytearray) -> None:
         nonlocal last_rx, applied, power_off_seen
-        last_rx = loop.time()
+        last_rx = _monotonic(loop)
         parsed = parse_notification(bytes(data))
         if isinstance(parsed, StatusNotification):
             if parsed.code == StatusCode.POWER and parsed.value == 1:
@@ -166,7 +180,7 @@ async def run_session(
         # a link so degraded the next session's full dump is the better fix.
         while True:
             quiet.clear()
-            remaining = idle_timeout - (loop.time() - last_rx)
+            remaining = idle_timeout - (_monotonic(loop) - last_rx)
             if remaining <= 0:
                 break
             try:

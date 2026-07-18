@@ -66,6 +66,8 @@ async def test_unload_shuts_down_coordinator_before_dropping_it():
     hass = ha_stub.HomeAssistant()
 
     class SpyCoordinator:
+        reported_enum_issues = {"unknown_enum_layout_7"}
+
         async def async_shutdown(self):
             events.append("shutdown")
             # Reference must still be held at shutdown time (pop comes after).
@@ -80,9 +82,12 @@ async def test_unload_shuts_down_coordinator_before_dropping_it():
 
     hass.config_entries = SimpleNamespace(async_unload_platforms=unload_platforms)
 
+    ha_stub.deleted_issues.clear()
     assert await integration.async_unload_entry(hass, entry) is True
     assert events == ["unload_platforms", "shutdown"]
     assert entry.entry_id not in hass.data[DOMAIN]
+    # B-LOW-1: unload retracts the tracked Repairs issues.
+    assert ha_stub.deleted_issues == [(DOMAIN, "unknown_enum_layout_7")]
 
 
 @pytest.mark.asyncio
@@ -91,6 +96,8 @@ async def test_failed_platform_unload_keeps_coordinator_running():
     hass = ha_stub.HomeAssistant()
 
     class SpyCoordinator:
+        reported_enum_issues = {"unknown_enum_layout_7"}
+
         async def async_shutdown(self):
             raise AssertionError("must not shut down on failed unload")
 
@@ -101,8 +108,10 @@ async def test_failed_platform_unload_keeps_coordinator_running():
 
     hass.config_entries = SimpleNamespace(async_unload_platforms=unload_platforms)
 
+    ha_stub.deleted_issues.clear()
     assert await integration.async_unload_entry(hass, entry) is False
     assert entry.entry_id in hass.data[DOMAIN]
+    assert ha_stub.deleted_issues == []  # issues stay while the entry runs
 
 
 def test_coordinator_passes_config_entry_explicitly():
@@ -112,6 +121,30 @@ def test_coordinator_passes_config_entry_explicitly():
     coordinator = StealthTechCoordinator(ha_stub.HomeAssistant(), entry)
     assert coordinator.received_explicit_config_entry is True
     assert coordinator.config_entry is entry
+
+
+@pytest.mark.asyncio
+async def test_repairs_check_failure_does_not_kill_poll(monkeypatch):
+    """B-MED-1: the unknown-enum Repairs nudge is advisory — if it raises,
+    the poll still returns the freshly-fetched state and resets failures."""
+    import lovesac_stealthtech.coordinator as coordinator_mod
+
+    entry = make_entry()
+    coordinator = StealthTechCoordinator(ha_stub.HomeAssistant(), entry)
+    fresh = StealthTechState()
+
+    async def fake_poll():
+        return fresh
+
+    coordinator.hub.poll = fake_poll
+    coordinator._failures = 2
+
+    def boom(hass, coord):
+        raise RuntimeError("issue registry unavailable")
+
+    monkeypatch.setattr(coordinator_mod, "async_check_unknown_enums", boom)
+    assert await coordinator._async_update_data() is fresh
+    assert coordinator._failures == 0  # successful poll despite the nudge
 
 
 # --- A-MED-1 + B4 -----------------------------------------------------------

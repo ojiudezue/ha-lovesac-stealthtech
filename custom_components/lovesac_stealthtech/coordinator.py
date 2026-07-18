@@ -110,7 +110,12 @@ class StealthTechCoordinator(DataUpdateCoordinator[StealthTechState]):
         self._failures = 0
         # v0.3 D5: nudge unknown layout/arm/covering values toward the
         # crowd-sourced enum-report issue form via Repairs.
-        async_check_unknown_enums(self.hass, self)
+        # B-MED-1: best-effort — the state was already fetched successfully,
+        # so a Repairs/issue-registry failure must never kill the poll.
+        try:
+            async_check_unknown_enums(self.hass, self)
+        except Exception:  # noqa: BLE001 - nudge is advisory only
+            _LOGGER.debug("Unknown-enum Repairs check failed", exc_info=True)
         return state
 
     async def async_send_frames(

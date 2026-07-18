@@ -147,6 +147,19 @@ automation:
 
 Three diagnostic sensors report raw configuration bytes from the hub: Layout (raw), Couch Cover (raw) and Couch Arm Type (raw). The firmware names layouts like Straight, L-shape, U-shape and Pit, but nobody has published which number means which. If you own the system, you can help fill in the table: [open an issue](https://github.com/ojiudezue/ha-lovesac-stealthtech/issues) with the raw values these sensors show and what the Lovesac app says your layout, arm style and fabric are. Once a value is confirmed, the sensor starts showing the name instead of the number, and the raw byte stays visible as a `raw_value` attribute.
 
+## Development
+
+The test suite requires Python 3.10+ (the HA-facing modules use `kw_only`
+dataclasses, matching the real HA runtime). Use the project venv:
+
+```bash
+.venv313/bin/python -m pytest tests/ -q
+```
+
+On older Pythons the HA-layer test modules cannot run and a guard test fails
+the run loudly; set `LOVESAC_ALLOW_PY39_SKIP=1` only if you knowingly want the
+pure-protocol subset alone.
+
 ## Credits
 
 - [homebridge-lovesac-stealthtech](https://github.com/ohmantics/homebridge-lovesac-stealthtech) by Alex Rosenberg, the first working implementation of this protocol and the reference for command framing

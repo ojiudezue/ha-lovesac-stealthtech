@@ -197,6 +197,7 @@ class IssueSeverity:
 
 
 created_issues: list[dict] = []
+deleted_issues: list[tuple] = []
 
 
 def async_create_issue(
@@ -227,6 +228,12 @@ def async_create_issue(
             "learn_more_url": learn_more_url,
         }
     )
+
+
+def async_delete_issue(hass, domain, issue_id):
+    """Signature mirrors HA core 2024.11.0 helpers/issue_registry.py
+    (positional hass, domain, issue_id)."""
+    deleted_issues.append((domain, issue_id))
 
 
 # --- homeassistant.config_entries flow surface + voluptuous ------------------
@@ -352,6 +359,7 @@ def install() -> None:
     ir = _module("homeassistant.helpers.issue_registry")
     ir.IssueSeverity = IssueSeverity
     ir.async_create_issue = async_create_issue
+    ir.async_delete_issue = async_delete_issue
     helpers.issue_registry = ir
 
     ha.config_entries = ce
