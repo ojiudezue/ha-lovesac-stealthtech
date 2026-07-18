@@ -49,7 +49,14 @@ Consequences:
 If the hub is far from your Home Assistant host, an
 [ESPHome Bluetooth proxy](https://esphome.io/components/bluetooth_proxy.html)
 works well — the integration uses HA's standard Bluetooth stack, so any active
-connectable proxy extends its range transparently.
+connectable proxy extends its range transparently (ESP32 firmware 2022.9.3+
+for connections).
+
+**Shelly Bluetooth proxies will NOT work for control.** Shelly Gen2+ devices
+proxy advertisements only — per the HA Bluetooth docs they support no active
+connections ("Single active connection: not supported"). A Shelly near the
+couch lets HA *discover* the hub but never connect to it. You need the HA
+host's own adapter in range, or an ESPHome proxy.
 
 ## Untested against hardware
 
