@@ -104,3 +104,14 @@ carries).
 - Unit tests per entity; fake-client tests for dump-after-write and
   version-request-per-session; suite stays green.
 - Live write-back into this doc post-deploy, per house style.
+
+## Live results 2026-07-18 (post deploy, pre paces)
+All v0.2 entities live on the operator's system via ESPHome proxy: input
+sensor and select agree (HDMI-ARC), sound mode reads Movies, audio
+capability sensor present, firmware versions read over the wire (MCU 1.71,
+DSP 1.68, EQ 1.23), control link on with fresh last contact, raw enum
+sensors populated (layout 5, covering 1, arm type 4, first corpus data for
+the enum table), sync button present. Earlier EQ changes persisted through
+a Home Assistant restart. Remaining acceptance items (sources sweep, sound
+mode sweep, Bluetooth transport, app contention, coexistence test) run in
+person against real audio.
