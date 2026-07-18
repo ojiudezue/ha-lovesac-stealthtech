@@ -2,9 +2,29 @@
 disconnect session and the queued-write path."""
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from lovesac_stealthtech import ble, protocol as p
+
+
+@pytest.fixture(autouse=True)
+def deterministic_session(monkeypatch):
+    """B-HIGH-2: end the drain on a deterministic signal, not wall time.
+
+    The fake client delivers every notification synchronously inside
+    write_gatt_char, so by the time run_session reaches the drain loop there
+    is nothing left to receive. Substituting an ever-advancing virtual clock
+    for the session's monotonic source (the `ble._monotonic` test seam) makes
+    the idle window already elapsed at the first drain check — the session
+    ends because all frames were delivered, never because 0.05 real seconds
+    happened to pass on a loaded machine. INTER_WRITE_DELAY is zeroed for the
+    same reason (pure wall-clock sleep with no ordering significance).
+    """
+    ticks = itertools.count()
+    monkeypatch.setattr(ble, "_monotonic", lambda loop: float(next(ticks)) * 1000.0)
+    monkeypatch.setattr(ble, "INTER_WRITE_DELAY", 0)
 
 
 class FakeClient:

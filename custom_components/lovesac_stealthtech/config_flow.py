@@ -10,6 +10,9 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_IDLE_TIMEOUT,
+    CONF_MY_ARM_STYLE,
+    CONF_MY_COUCH_SHAPE,
+    CONF_MY_FABRIC,
     CONF_POLL_INTERVAL,
     DEFAULT_IDLE_TIMEOUT,
     DEFAULT_POLL_INTERVAL,
@@ -25,6 +28,12 @@ class StealthTechConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._discovery: BluetoothServiceInfoBleak | None = None
 
+    # AUDIT (v0.3 D6b): discovery matches on the excelpoint.com service UUID
+    # via manifest.json's bluetooth matcher — UUID matching is present and
+    # authoritative, so no name matching is used. Fallback knowledge only:
+    # the official app also recognizes hubs by BLE name prefixes "HK_Lovesac"
+    # and "EE4034" (libstealthtech). If a hub firmware ever stops advertising
+    # the service UUID, add a local_name matcher on those prefixes.
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
     ) -> ConfigFlowResult:
@@ -96,6 +105,21 @@ class StealthTechOptionsFlow(OptionsFlow):
                         CONF_IDLE_TIMEOUT,
                         default=options.get(CONF_IDLE_TIMEOUT, DEFAULT_IDLE_TIMEOUT),
                     ): vol.All(vol.Coerce(float), vol.Range(min=1.0, max=60.0)),
+                    # v0.3 D4: local override labels for the raw enum sensors.
+                    # Empty string = unset. Shipped-table bindings (e.g.
+                    # LAYOUT_NAMES) always take precedence over these.
+                    vol.Optional(
+                        CONF_MY_COUCH_SHAPE,
+                        default=options.get(CONF_MY_COUCH_SHAPE, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_MY_ARM_STYLE,
+                        default=options.get(CONF_MY_ARM_STYLE, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_MY_FABRIC,
+                        default=options.get(CONF_MY_FABRIC, ""),
+                    ): str,
                 }
             ),
         )

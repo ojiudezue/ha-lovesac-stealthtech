@@ -24,11 +24,17 @@
         "title": "StealthTech options",
         "data": {
           "poll_interval": "Poll interval (seconds)",
-          "idle_timeout": "Idle disconnect timeout (seconds)"
+          "idle_timeout": "Idle disconnect timeout (seconds)",
+          "my_couch_shape": "My couch shape (local label)",
+          "my_arm_style": "My arm style (local label)",
+          "my_fabric": "My fabric (local label)"
         },
         "data_description": {
           "poll_interval": "How often to connect and refresh state. The connection is dropped between polls so the Lovesac app can still connect.",
-          "idle_timeout": "Seconds of notification silence before disconnecting."
+          "idle_timeout": "Seconds of notification silence before disconnecting.",
+          "my_couch_shape": "Shown as the Couch Layout (raw) sensor state while its raw value is undecoded. Please also report your raw value + shape pairing at https://github.com/ojiudezue/ha-lovesac-stealthtech/issues so the shared table can ship it for everyone.",
+          "my_arm_style": "Shown as the Couch Arm Type (raw) sensor state while its raw value is undecoded. Please also report the pairing at https://github.com/ojiudezue/ha-lovesac-stealthtech/issues.",
+          "my_fabric": "Shown as the Couch Cover (raw) sensor state while its raw value is undecoded. Please also report the pairing at https://github.com/ojiudezue/ha-lovesac-stealthtech/issues."
         }
       }
     }
@@ -99,12 +105,33 @@
       },
       "sound_mode": {
         "name": "Sound mode"
+      },
+      "couch_shape": {
+        "name": "Couch Shape",
+        "description": "After setting a shape, the readback may stay blank until the couch's raw layout value is decoded — the device reports layout on a different scale than the write command, so the current selection only displays once the shipped table maps the raw value."
       }
     },
     "button": {
       "sync": {
         "name": "Sync"
       }
+    },
+    "update": {
+      "mcu_update": {
+        "name": "MCU firmware update"
+      },
+      "dsp_update": {
+        "name": "DSP firmware update"
+      },
+      "eq_update": {
+        "name": "EQ firmware update"
+      }
+    }
+  },
+  "issues": {
+    "unknown_enum_value": {
+      "title": "Unknown couch {kind} value {value}",
+      "description": "The StealthTech hub reports {kind} as raw value {value}, which is not in the shipped decoding table yet. Help decode it: open the learn-more link (a prefilled report form) and add what the Lovesac app or your eyes say your couch is. To label it locally in the meantime, set the matching override in the integration's options. Dismiss this issue if you are not interested."
     }
   }
 }

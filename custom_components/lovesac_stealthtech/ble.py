@@ -25,6 +25,7 @@ from typing import Protocol as TypingProtocol
 from .protocol import (
     CHAR_UPSTREAM,
     Frame,
+    StatusCode,
     StealthTechState,
     StatusNotification,
     VersionNotification,
@@ -35,6 +36,27 @@ from .protocol import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Power-off burst guard [libstealthtech commands.rs:452-468 is_audio_state]:
+# during a power-off burst the hub emits garbage audio/EQ status frames, so
+# once a POWER=off status arrives in a session's drain, subsequent audio/EQ
+# codes are discarded for the remainder of that session. POWER, SUBWOOFER,
+# the raw config codes (LAYOUT/COVERING/ARM_TYPE) and version frames still
+# apply. The guard is session-scoped: the next session starts clean.
+_AUDIO_EQ_CODES = frozenset(
+    {
+        StatusCode.VOLUME,
+        StatusCode.CENTER_VOLUME,
+        StatusCode.TREBLE,
+        StatusCode.BASS,
+        StatusCode.MUTE,
+        StatusCode.QUIET_MODE,
+        StatusCode.BALANCE,
+        StatusCode.PRESET,
+        StatusCode.SOURCE,
+        StatusCode.REAR_VOLUME,
+    }
+)
 
 # Delay between successive characteristic writes; the hub's MCU relays frames
 # over UART and can drop back-to-back writes.
@@ -54,6 +76,10 @@ class BleClientLike(TypingProtocol):
 
     async def stop_notify(self, char_uuid: str) -> None: ...
 
+    # AUDIT (v0.3 D6a): every write in this module passes response=False —
+    # write-WITHOUT-response is mandatory. libstealthtech found that
+    # write-with-response (WithResponse) hangs the device; do not "fix" a
+    # write to response=True.
     async def write_gatt_char(
         self, char_uuid: str, data: bytes, response: bool = False
     ) -> None: ...
@@ -62,6 +88,17 @@ class BleClientLike(TypingProtocol):
 
 
 ConnectCallable = Callable[[], Awaitable[BleClientLike]]
+
+
+def _monotonic(loop: asyncio.AbstractEventLoop) -> float:
+    """Session clock — test seam ONLY.
+
+    In production this is exactly ``loop.time()`` (no behavior change). The
+    ble-session tests substitute a virtual clock so the idle-drain window
+    ends deterministically once the fake client has delivered every frame,
+    instead of after a load-sensitive wall-clock wait.
+    """
+    return loop.time()
 
 
 async def run_session(
@@ -84,14 +121,30 @@ async def run_session(
     client = await connect()
     quiet = asyncio.Event()
     loop = asyncio.get_running_loop()
-    last_rx = loop.time()
+    last_rx = _monotonic(loop)
     applied = 0
+    # Burst guard, see _AUDIO_EQ_CODES above. NOTE: a POWER=on status does
+    # NOT clear this latch within the session by design — the next session's
+    # dump corrects any state the guard discarded.
+    power_off_seen = False
 
     def _on_notify(_char: object, data: bytearray) -> None:
-        nonlocal last_rx, applied
-        last_rx = loop.time()
+        nonlocal last_rx, applied, power_off_seen
+        last_rx = _monotonic(loop)
         parsed = parse_notification(bytes(data))
         if isinstance(parsed, StatusNotification):
+            if parsed.code == StatusCode.POWER and parsed.value == 1:
+                # READ power is inverted: value 1 = OFF. [LST / HB responses.ts]
+                power_off_seen = True
+            elif power_off_seen and parsed.code in _AUDIO_EQ_CODES:
+                _LOGGER.debug(
+                    "Discarding %s=%d after power-off in this session "
+                    "(power-off burst emits garbage audio/EQ status)",
+                    parsed.code.name,
+                    parsed.value,
+                )
+                quiet.set()
+                return
             apply_status(state, parsed)
             applied += 1
         elif isinstance(parsed, VersionNotification):
@@ -127,7 +180,7 @@ async def run_session(
         # a link so degraded the next session's full dump is the better fix.
         while True:
             quiet.clear()
-            remaining = idle_timeout - (loop.time() - last_rx)
+            remaining = idle_timeout - (_monotonic(loop) - last_rx)
             if remaining <= 0:
                 break
             try:
