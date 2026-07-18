@@ -115,3 +115,11 @@ the enum table), sync button present. Earlier EQ changes persisted through
 a Home Assistant restart. Remaining acceptance items (sources sweep, sound
 mode sweep, Bluetooth transport, app contention, coexistence test) run in
 person against real audio.
+
+## v0.2.2 live 2026-07-18 morning
+Icons, renamed labels and the enum mechanism verified on the operator's
+system after restart: Couch Arm Type (raw) shows value 4 with raw_value and
+decoding attributes and the sofa icon; Subwoofer link renamed; brand images
+in place. Fan recheck instrumentation on the same restart counted its first
+evaluation. Note for a future polish pass: the decoding attribute string
+contains an em dash; replace with plain punctuation to match house style.
