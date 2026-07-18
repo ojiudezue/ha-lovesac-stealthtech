@@ -135,7 +135,14 @@ SOURCE_NAME_TO_VALUE = {name: src for src, name in SOURCE_NAMES.items()}
 # (https://github.com/ojiudezue/ha-lovesac-stealthtech/issues). The raw
 # sensors render the mapped name when a value is present here, else the raw
 # int, and always expose the raw int as a `raw_value` attribute.
-LAYOUT_NAMES: dict[int, str] = {}
+LAYOUT_NAMES: dict[int, str] = {
+    # First empirical binding, 2026-07-18: owner-confirmed physical L-shape
+    # sactional reads Layout raw value 5. Note this is OUTSIDE the app's
+    # write enum (Straight=0, L=1, U=2, Pit=3 per libstealthtech
+    # commands.rs:171-197) — the read scale differs from the write scale
+    # and is being mapped one report at a time.
+    5: "L-Shape",
+}
 ARM_TYPE_NAMES: dict[int, str] = {}
 COVERING_NAMES: dict[int, str] = {}
 
