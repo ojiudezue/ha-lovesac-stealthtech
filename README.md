@@ -28,7 +28,7 @@ Via [HACS](https://hacs.xyz): add this repository as a custom repository (catego
 
 Manual: copy `custom_components/lovesac_stealthtech` into your `config/custom_components` directory and restart.
 
-## The one thing to know
+## The one thing to know before getting started 
 
 The hub accepts a single Bluetooth control connection. The Lovesac app and this integration cannot both hold it at once. The integration connects briefly on a schedule and for commands, then disconnects, so the app still works between polls. If controls stop responding, the app on someone's phone is almost always the reason, and the connection health sensor will say so.
 
