@@ -28,13 +28,112 @@ Via [HACS](https://hacs.xyz): add this repository as a custom repository (catego
 
 Manual: copy `custom_components/lovesac_stealthtech` into your `config/custom_components` directory and restart.
 
-## The one thing to know before getting started 
+## The one thing to know before getting started
 
 The hub accepts a single Bluetooth control connection. The Lovesac app and this integration cannot both hold it at once. The integration connects briefly on a schedule and for commands, then disconnects, so the app still works between polls. If controls stop responding, the app on someone's phone is almost always the reason, and the connection health sensor will say so.
 
 A related detail that works in your favor: Bluetooth audio streaming to the hub is a separate link from the control connection. You can stream music from a phone while Home Assistant keeps control.
 
 Writes are ignored by the hub while it is powered off, except power on itself. Equalizer changes made while the system is off will not stick.
+
+## Example automations
+
+Entity ids below are the defaults. Yours may carry an area prefix such as `media_room_`, so check the device page.
+
+Movie night. When the TV comes on, wake the couch, switch it to HDMI ARC and set the Movies sound mode:
+
+```yaml
+automation:
+  - alias: Couch follows the TV
+    trigger:
+      - platform: state
+        entity_id: media_player.living_room_tv
+        to: "on"
+    action:
+      - service: media_player.turn_on
+        target:
+          entity_id: media_player.lovesac_stealthtech
+      - service: select.select_option
+        target:
+          entity_id: select.lovesac_stealthtech_input
+        data:
+          option: HDMI-ARC
+      - service: select.select_option
+        target:
+          entity_id: select.lovesac_stealthtech_sound_mode
+        data:
+          option: Movies
+```
+
+Quiet hours. Turn on Quiet Couch Mode at night so late viewing stops shaking the frame, and release it in the morning:
+
+```yaml
+automation:
+  - alias: Quiet couch at night
+    trigger:
+      - platform: time
+        at: "22:00:00"
+    condition:
+      - condition: state
+        entity_id: media_player.lovesac_stealthtech
+        state: "on"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.lovesac_stealthtech_quiet_mode
+  - alias: Quiet couch off in the morning
+    trigger:
+      - platform: time
+        at: "08:00:00"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.lovesac_stealthtech_quiet_mode
+```
+
+Know when the app is hogging the connection. If controls stop working this is almost always why, so let the house tell you instead of making you guess:
+
+```yaml
+automation:
+  - alias: Couch control link lost
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.lovesac_stealthtech_control_link
+        to: "off"
+        for: "00:10:00"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: StealthTech control lost
+          message: >
+            {{ state_attr('binary_sensor.lovesac_stealthtech_control_link', 'reason') }}
+```
+
+Catch firmware updates. Updates are delivered by the Lovesac app, and the hub never announces them, so watch the version sensors for the moment one lands:
+
+```yaml
+automation:
+  - alias: StealthTech firmware changed
+    trigger:
+      - platform: state
+        entity_id:
+          - sensor.lovesac_stealthtech_mcu_firmware
+          - sensor.lovesac_stealthtech_dsp_firmware
+          - sensor.lovesac_stealthtech_eq_firmware
+    condition:
+      - condition: template
+        value_template: >
+          {{ trigger.from_state is not none
+             and trigger.from_state.state not in ['unknown', 'unavailable']
+             and trigger.to_state.state not in ['unknown', 'unavailable'] }}
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: StealthTech firmware updated
+          message: >
+            {{ trigger.entity_id }} went from
+            {{ trigger.from_state.state }} to {{ trigger.to_state.state }}
+```
 
 ## Help build the enum table
 
