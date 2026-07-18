@@ -1,4 +1,4 @@
-"""Subwoofer-connected binary sensor."""
+"""Binary sensors: subwoofer connected + control-link health."""
 from __future__ import annotations
 
 from homeassistant.components.binary_sensor import (
@@ -14,12 +14,22 @@ from .const import DOMAIN
 from .coordinator import StealthTechCoordinator
 from .entity import StealthTechEntity
 
+CONTROL_LINK_DOWN_REASON = (
+    "connection failed — the Lovesac app may be holding the hub's single "
+    "Bluetooth slot"
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator: StealthTechCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([StealthTechSubwooferSensor(coordinator)])
+    async_add_entities(
+        [
+            StealthTechSubwooferSensor(coordinator),
+            StealthTechControlLinkSensor(coordinator),
+        ]
+    )
 
 
 class StealthTechSubwooferSensor(StealthTechEntity, BinarySensorEntity):
@@ -34,3 +44,30 @@ class StealthTechSubwooferSensor(StealthTechEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         return self.state_obj.subwoofer_connected
+
+
+class StealthTechControlLinkSensor(StealthTechEntity, BinarySensorEntity):
+    """Did the last poll session connect?
+
+    The one support question this integration will ever generate is
+    "controls stopped working" — and the answer is almost always the app
+    holding the hub's single BLE slot. Put the answer on the device page.
+    """
+
+    _attr_translation_key = "control_link"
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: StealthTechCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.address}_control_link"
+
+    @property
+    def is_on(self) -> bool | None:
+        return self.coordinator.link_ok
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str] | None:
+        if self.coordinator.link_ok is False:
+            return {"reason": CONTROL_LINK_DOWN_REASON}
+        return None

@@ -42,10 +42,29 @@
       "balance": { "name": "Balance" }
     },
     "switch": {
-      "quiet_mode": { "name": "Quiet mode" }
+      "quiet_mode": { "name": "Quiet Couch Mode" }
     },
     "binary_sensor": {
-      "subwoofer": { "name": "Subwoofer" }
+      "subwoofer": { "name": "Subwoofer" },
+      "control_link": { "name": "Control link" }
+    },
+    "sensor": {
+      "input": { "name": "Input" },
+      "audio_capability": { "name": "Audio capability" },
+      "mcu_firmware": { "name": "MCU firmware" },
+      "dsp_firmware": { "name": "DSP firmware" },
+      "eq_firmware": { "name": "EQ firmware" },
+      "layout": { "name": "Layout (raw)" },
+      "covering": { "name": "Covering (raw)" },
+      "arm_type": { "name": "Arm type (raw)" },
+      "last_contact": { "name": "Last contact" }
+    },
+    "select": {
+      "input": { "name": "Input" },
+      "sound_mode": { "name": "Sound mode" }
+    },
+    "button": {
+      "sync": { "name": "Sync" }
     }
   }
 }
