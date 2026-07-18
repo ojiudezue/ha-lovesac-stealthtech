@@ -1,82 +1,46 @@
-# ha-lovesac-stealthtech
+# Lovesac StealthTech for Home Assistant
 
-Home Assistant custom integration for the **Lovesac StealthTech Sound + Charge**
-system (the Harman Kardon sound system embedded in Sactionals), controlled over
-Bluetooth Low Energy.
+A local Home Assistant integration for the [Lovesac StealthTech Sound + Charge](https://www.lovesac.com/learn-about-sactionals-stealthtech-sound-charge) system, the Harman Kardon audio package built into Sactionals. It talks to the hub directly over Bluetooth Low Energy. No cloud, no account, no Lovesac app required once set up.
 
-## Credits
+## What you get
 
-The BLE protocol was reverse-engineered by others; this integration only ports it
-to Home Assistant. All protocol knowledge comes from these MIT-licensed projects:
+- Media player: power, volume, mute, input selection (HDMI ARC, Bluetooth, AUX, Optical), sound modes (Movies, Music, TV, News), and play, pause and skip when the source is Bluetooth
+- A standalone input dropdown and a current input sensor, so switching inputs from a dashboard takes one tap
+- Equalizer controls: bass, treble, center volume, rear volume, balance
+- Quiet Couch Mode switch. This is Lovesac's night listening feature: it turns down the speakers and subwoofer embedded in the seats and limits peaks, while the center channel keeps carrying the audio. [Lovesac's description](https://www.lovesac.com/stealthtech-app)
+- Subwoofer connection sensor
+- Diagnostics: firmware versions (MCU, DSP, EQ), audio capability, connection health, last contact, and raw layout, covering and arm type values
+- A sync button that refreshes state from the hub on demand
 
-- [ohmantics/homebridge-lovesac-stealthtech](https://github.com/ohmantics/homebridge-lovesac-stealthtech) — the original HomeKit plugin and reference implementation (Alex Rosenberg)
-- [jackspirou/libstealthtech](https://github.com/jackspirou/libstealthtech) — full protocol spec from firmware analysis (`docs/protocol-mapping.md`)
+## Audio capability, stated plainly
 
-## Features
+The hub is HDMI ARC only and decodes Dolby Digital 5.1, with Pro Logic II upmixing. There is no Atmos and no DTS support in the hardware as shipped, per the [libstealthtech hardware teardown](https://github.com/jackspirou/libstealthtech). The integration surfaces this as a diagnostic sensor so the answer lives on the device page instead of in a forum thread.
 
-- **Media player**: power, volume (0–36 mapped to 0–100%), mute, input source
-  (HDMI-ARC / Bluetooth / AUX / Optical), sound mode presets
-  (Movies / Music / TV / News), and play/pause/skip when the source is Bluetooth
-- **Numbers**: bass (0–20), treble (0–20), center volume (0–30), rear volume (0–30), balance (0–100, 50 = center)
-- **Switch**: quiet mode (night mode)
-- **Binary sensor**: subwoofer connected
+## Requirements
+
+- Home Assistant with the Bluetooth integration
+- A Bluetooth adapter in range of the hub, or an [ESPHome Bluetooth proxy](https://esphome.io/components/bluetooth_proxy.html) (ESP32, firmware 2022.9.3 or newer for active connections)
+- Note: Shelly Bluetooth proxies will not work for control. They relay advertisements only and cannot open connections, per the [Home Assistant Bluetooth documentation](https://www.home-assistant.io/integrations/bluetooth/). A Shelly near the couch lets Home Assistant discover the hub but never control it.
 
 ## Install
 
-1. HACS → Custom repositories → add this repo as type *Integration*
-2. Install "Lovesac StealthTech", restart Home Assistant
-3. The hub should be auto-discovered via Bluetooth (it advertises a service UUID
-   encoding `excelpoint.com`); otherwise add it manually with its BLE MAC address
+Via [HACS](https://hacs.xyz): add this repository as a custom repository (category: Integration), install, restart Home Assistant. The hub should appear as a discovered device if it is advertising; otherwise add the integration manually and enter its Bluetooth address.
 
-## The single-connection caveat (important)
+Manual: copy `custom_components/lovesac_stealthtech` into your `config/custom_components` directory and restart.
 
-**The StealthTech hub accepts exactly ONE BLE connection at a time.** This
-integration never holds the connection: it connects, requests a state dump,
-drains notifications, sends any queued commands, and disconnects after a short
-idle period (default 5 s). Polling defaults to every 90 s (both configurable in
-the integration options).
+## The one thing to know
 
-Consequences:
+The hub accepts a single Bluetooth control connection. The Lovesac app and this integration cannot both hold it at once. The integration connects briefly on a schedule and for commands, then disconnects, so the app still works between polls. If controls stop responding, the app on someone's phone is almost always the reason, and the connection health sensor will say so.
 
-- If the **Lovesac mobile app** is open on a phone in range, it holds the slot
-  and the integration cannot connect. After 6 consecutive failures the entities
-  go unavailable with a message saying exactly this. Close the app to recover.
-- Conversely, while the integration is mid-poll (a few seconds), the app can't
-  connect. With the default 90 s interval this is rarely noticeable.
+A related detail that works in your favor: Bluetooth audio streaming to the hub is a separate link from the control connection. You can stream music from a phone while Home Assistant keeps control.
 
-## Range / ESPHome BLE proxy
+Writes are ignored by the hub while it is powered off, except power on itself. Equalizer changes made while the system is off will not stick.
 
-If the hub is far from your Home Assistant host, an
-[ESPHome Bluetooth proxy](https://esphome.io/components/bluetooth_proxy.html)
-works well — the integration uses HA's standard Bluetooth stack, so any active
-connectable proxy extends its range transparently (ESP32 firmware 2022.9.3+
-for connections).
+## Credits
 
-**Shelly Bluetooth proxies will NOT work for control.** Shelly Gen2+ devices
-proxy advertisements only — per the HA Bluetooth docs they support no active
-connections ("Single active connection: not supported"). A Shelly near the
-couch lets HA *discover* the hub but never connect to it. You need the HA
-host's own adapter in range, or an ESPHome proxy.
+- [homebridge-lovesac-stealthtech](https://github.com/ohmantics/homebridge-lovesac-stealthtech) by Alex Rosenberg, the first working implementation of this protocol and the reference for command framing
+- [libstealthtech](https://github.com/jackspirou/libstealthtech) by Jack Spirou, whose protocol mapping, firmware analysis and hardware teardown documentation made a clean room Python implementation possible
 
-## Untested against hardware
+Both are MIT licensed, as is this project. See LICENSE.
 
-This integration was written from the protocol documentation above and has
-**not yet been validated against a real hub**. All `# PROTOCOL-UNCERTAIN:`
-comments in the source mark spots where the docs are ambiguous (notably the
-play/pause/skip byte values and inter-write timing). Bug reports with
-`bleak` debug logs are very welcome.
-
-## Development
-
-```bash
-pip install pytest pytest-asyncio
-pytest tests/ -v
-```
-
-The protocol layer (`protocol.py`) is pure Python with no BLE or HA
-dependencies and is fully unit-tested from fixtures constructed out of the
-protocol docs.
-
-## License
-
-MIT — see [LICENSE](LICENSE). Upstream protocol sources are also MIT.
+This project is not affiliated with, endorsed by, or supported by Lovesac or Harman Kardon. StealthTech and Sactionals are trademarks of The Lovesac Company. Use at your own risk.
