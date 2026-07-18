@@ -247,8 +247,11 @@ def test_raw_enum_mapped_renders_name_keeps_raw_attr(key, attr, names, monkeypat
     assert sensor.extra_state_attributes["raw_value"] == 3
 
 
-def test_enum_name_maps_ship_empty():
-    assert protocol.LAYOUT_NAMES == {}
+def test_enum_name_maps_hold_only_confirmed_bindings():
+    # Every entry must be an owner-confirmed empirical binding with a
+    # provenance comment in protocol.py. First binding landed 2026-07-18:
+    # layout raw 5 = L-Shape.
+    assert protocol.LAYOUT_NAMES == {5: "L-Shape"}
     assert protocol.ARM_TYPE_NAMES == {}
     assert protocol.COVERING_NAMES == {}
 
